@@ -20,7 +20,6 @@ const stage = document.getElementById("stage-container")!;
 const stagePane = document.getElementById("stage-pane")!;
 
 const spriteProperties = document.getElementById("sprite-properties")!;
-const propertyTemplate: HTMLTemplateElement = document.querySelector("template")!;
 
 
 // This is here to shut the linter up
@@ -68,6 +67,97 @@ const COPY_ICON =
 const CHECK_ICON =
     "M6.27 10.87 2.7 7.3l1.06-1.06 2.51 2.51 5.97-5.97L13.3 3.84z";
 
+const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
+const copyButtonTemplate = document.getElementById("copy-button-template") as HTMLTemplateElement;
+const spritePropertiesCode = document.getElementById("code-template") as HTMLElement;
+const codeSpace = document.getElementById("text-contents") as HTMLSpanElement;
+
+
+function cloneTemplate(template: HTMLTemplateElement) {
+    return (template.content
+        .cloneNode(true) as DocumentFragment)
+        .firstElementChild as HTMLElement | null
+}
+
+
+function cloneButton() {
+    return cloneTemplate(copyButtonTemplate)! as HTMLButtonElement;
+}
+
+
+interface HTMLElementWithValue {
+    value: string;
+}
+
+
+function handleCopyButton(button: HTMLButtonElement, input: HTMLElementWithValue) {
+    button.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(
+            input.value
+        );
+
+        const path = button.querySelector<SVGPathElement>(
+            "path"
+        );
+
+        if (!path) {
+            return;
+        }
+
+        path.setAttribute("d", CHECK_ICON);
+
+        setTimeout(() => {
+            path.setAttribute("d", COPY_ICON);
+        }, 1500);
+
+        vscode.postMessage({
+            type: "copiedToClipboard",
+        });
+    });
+}
+
+class CodeSpaceViewer {
+    size: number = 100;
+    x: number = 0;
+    y: number = 0;
+    rotation: number = 90;
+    rotationStyle: string = "all around";
+
+    public setValue(propertyName: string, value: any) {
+        switch (propertyName) {
+            case "size":
+                this.size = value;
+                break;
+            case "x":
+                this.x = value;
+            case "y":
+                this.y = value;
+            case "rotation":
+                this.rotation = value;
+            case "rotationStyle":
+                this.rotationStyle = value;
+            default:
+                break;
+        }
+        console.log(this.getCode());
+        codeSpace.textContent = this.getCode();
+    }
+
+    public getCode() {
+        return `event event_whenflagclicked() {
+    motion_pointindirection(${this.rotation});
+    motion_gotoxy(${this.x}, ${this.y});
+    looks_setsizeto(${this.size});
+    motion_setrotationstyle("${this.rotationStyle}");
+}
+`
+    }
+}
+
+
+const codeSpaceViewer = new CodeSpaceViewer();
+
+
 class PropertyViewer {
     private selectedSprite: Sprite | undefined;
 
@@ -90,10 +180,7 @@ class PropertyViewer {
         this.property = property;
         this.readonly = property.readonly;
 
-        const fragment =
-            template.content.cloneNode(true) as DocumentFragment;
-
-        const node = fragment.firstElementChild as HTMLElement | null;
+        const node = cloneTemplate(template);
 
         if (!node) {
             throw new Error("Property template must have a root element.");
@@ -111,8 +198,12 @@ class PropertyViewer {
             throw new Error("Property template is missing required elements.");
         }
 
+        const button = cloneButton(); 
+        button.title = "Copy value";
+
         this.propertyNameNode = propertyNameNode;
         this.propertyValueNode = propertyValueNode;
+        this.propertyValueNode.appendChild(button);
 
         this.propertyNameNode.textContent = property.label;
 
@@ -129,6 +220,7 @@ class PropertyViewer {
             }
 
             this.select = select;
+            this.select.className = "text";
             this.propertyValueNode.appendChild(select);
             this.select.addEventListener("change", this.onChange)
             this.select.style.minWidth = "120px";
@@ -136,6 +228,7 @@ class PropertyViewer {
             const input = document.createElement("input");
             input.readOnly = this.readonly;
             this.input = input;
+            this.input.className = "text";
             this.propertyValueNode.appendChild(input);
             this.propertyValueNode.addEventListener("change", this.onChange)
 
@@ -147,33 +240,7 @@ class PropertyViewer {
             }
         }
 
-        const copyButton =
-            this.node.querySelector<HTMLButtonElement>(".copy-button");
-
-        copyButton?.addEventListener("click", async () => {
-            await navigator.clipboard.writeText(
-                this.getInput().value
-            );
-
-            const path = this.node.querySelector<SVGPathElement>(
-                ".copy-button path"
-            );
-
-            if (!path) {
-                return;
-            }
-
-            path.setAttribute("d", CHECK_ICON);
-
-            setTimeout(() => {
-                path.setAttribute("d", COPY_ICON);
-            }, 1500);
-
-            vscode.postMessage({
-                type: "copiedToClipboard",
-            });
-        });
-        
+        handleCopyButton(button, this.getInput());
         parent.appendChild(this.node);
     }
 
@@ -223,6 +290,7 @@ class PropertyViewer {
             })
         }
 
+        codeSpaceViewer.setValue(this.property.property, value);
     }
 
     public selectSprite(sprite: Sprite) {
@@ -243,8 +311,8 @@ class PropertyViewer {
             this.selectedSprite[this.property.property];
 
         this.propertyNameNode.textContent = this.property.label;
-
         this.getInput().value = String(value);
+        codeSpaceViewer.setValue(this.property.property, value);
     }
 }
 
@@ -278,6 +346,12 @@ const viewers: PropertyViewer[] = []
 
 const nameViewer = new PropertyViewer(spriteProperties, propertyTemplate, {property: "name", label: "Name", kind: "string", readonly: false})
 viewers.push(nameViewer)
+
+const codeButton = cloneButton()
+codeButton.title = "Copy code"
+
+handleCopyButton(codeButton, { get value() {return codeSpace.textContent} })
+spritePropertiesCode.appendChild(codeButton)
 
 properties.forEach(property => {
     viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property));
