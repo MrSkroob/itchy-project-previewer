@@ -76,7 +76,7 @@ const codeSpace = document.getElementById("text-contents") as HTMLSpanElement;
 function cloneTemplate(template: HTMLTemplateElement) {
     return (template.content
         .cloneNode(true) as DocumentFragment)
-        .firstElementChild as HTMLElement | null
+        .firstElementChild as HTMLElement | null;
 }
 
 
@@ -150,7 +150,7 @@ class CodeSpaceViewer {
     looks_setsizeto(${this.size});
     motion_setrotationstyle("${this.rotationStyle}");
 }
-`
+`;
     }
 }
 
@@ -222,7 +222,7 @@ class PropertyViewer {
             this.select = select;
             this.select.className = "text";
             this.propertyValueNode.appendChild(select);
-            this.select.addEventListener("change", this.onChange)
+            this.select.addEventListener("change", this.onChange);
             this.select.style.minWidth = "120px";
         } else {
             const input = document.createElement("input");
@@ -230,12 +230,12 @@ class PropertyViewer {
             this.input = input;
             this.input.className = "text";
             this.propertyValueNode.appendChild(input);
-            this.propertyValueNode.addEventListener("change", this.onChange)
+            this.propertyValueNode.addEventListener("change", this.onChange);
 
-            if (property.kind == "string") {
+            if (property.kind === "string") {
                 this.input.style.minWidth = "100px";
             }
-            else if (property.kind == "number") {
+            else if (property.kind === "number") {
                 this.input.style.minWidth = "45px";
             }
         }
@@ -253,7 +253,7 @@ class PropertyViewer {
             return this.input;
         }
 
-        throw new Error("this doesn't have any inputs...")
+        throw new Error("this doesn't have any inputs...");
     }
 
     private onChange = (_: Event) => {
@@ -270,7 +270,7 @@ class PropertyViewer {
         }
 
         let value: number | string;
-        if (this.property.kind == "number") {
+        if (this.property.kind === "number") {
             value = Number(input.value);
             if (Number.isNaN(value)) {
                 return;
@@ -287,11 +287,11 @@ class PropertyViewer {
                 type: "renameSprite",
                 oldName: oldValue,
                 newName: String(value)
-            })
+            });
         }
 
         codeSpaceViewer.setValue(this.property.property, value);
-    }
+    };
 
     public selectSprite(sprite: Sprite) {
         this.selectedSprite = sprite;
@@ -342,16 +342,16 @@ const properties: PropertyDefinition[] = [
     },
 ];
 
-const viewers: PropertyViewer[] = []
+const viewers: PropertyViewer[] = [];
 
-const nameViewer = new PropertyViewer(spriteProperties, propertyTemplate, {property: "name", label: "Name", kind: "string", readonly: false})
-viewers.push(nameViewer)
+const nameViewer = new PropertyViewer(spriteProperties, propertyTemplate, {property: "name", label: "Name", kind: "string", readonly: false});
+viewers.push(nameViewer);
 
-const codeButton = cloneButton()
-codeButton.title = "Copy code"
+const codeButton = cloneButton();
+codeButton.title = "Copy code";
 
-handleCopyButton(codeButton, { get value() {return codeSpace.textContent} })
-spritePropertiesCode.appendChild(codeButton)
+handleCopyButton(codeButton, { get value() {return codeSpace.textContent;} });
+spritePropertiesCode.appendChild(codeButton);
 
 properties.forEach(property => {
     viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property));
@@ -481,7 +481,7 @@ class Sprite {
     }
 
     public set x(value: number) {
-        this.trueX = value
+        this.trueX = value;
         this.updatePosition();
     }
 
@@ -490,7 +490,7 @@ class Sprite {
     }
 
     public set y(value: number) {
-        this.trueY = value
+        this.trueY = value;
         this.updatePosition();
     }
 
@@ -575,7 +575,7 @@ class Sprite {
         this._costumeNumber = index;
 
         this.setRotation(this._rotation - 90);
-        this.setSize(this._size / 100)
+        this.setSize(this._size / 100);
         this.sprite.replaceChildren(image);
     }
 
@@ -635,8 +635,8 @@ class Sprite {
         let x = Math.round(this.trueX);
         let y = Math.round(this.trueY);
 
-        x = clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2)
-        y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2)
+        x = clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
+        y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
 
         this.sprite.style.left =
             `${STAGE_WIDTH / 2 + Math.round(this.trueX)}px`;
@@ -683,7 +683,7 @@ class Sprite {
         this.trueY = pointer.y - this.offsetY;        
 
         this.updatePosition();
-    }
+    };
 
     private onMouseDown = (event: PointerEvent) => {
         this.dragging = true;
@@ -737,7 +737,7 @@ class Sprite {
             costumeNumber: this.costumeNumber,
             rotation: this.rotation,
             rotationStyle: this.rotationStyle
-        }
+        };
     }
 
     public fromJSON(state: SpriteState) {
@@ -756,7 +756,7 @@ class Sprite {
 function exportSpriteData() {
     const spriteData: SpriteState[] = [];
     sprites.forEach(sprite => {
-        spriteData.push(sprite.toJSON())
+        spriteData.push(sprite.toJSON());
     });
 
     const message: Message = {
@@ -764,7 +764,7 @@ function exportSpriteData() {
         stageState: spriteData
     };
 
-    console.log("Sending save data...")
+    console.log("Sending save data...");
 
     vscode.postMessage(message);
 }
@@ -804,7 +804,7 @@ function addSprite(spriteData: SpriteData, withData?: SpriteState) {
             const layer1 = sprites.get(a)!.getLayer();
             const layer2 = sprites.get(b)!.getLayer();
 
-            if (layer1 == layer2) {
+            if (layer1 === layer2) {
                 return 0;
             }
             else if (layer1 > layer2) {
@@ -813,7 +813,7 @@ function addSprite(spriteData: SpriteData, withData?: SpriteState) {
             else {
                 return -1;
             }
-        })
+        });
     }
 
     console.log(spriteOrder);

@@ -95,7 +95,7 @@ export default class Stage {
 
         this.webPanel.onDidDispose(() => {
             this.disposed = true;
-        })
+        });
     }
 
     public setProjectPath(projectPath?: vscode.Uri | null) {
@@ -110,7 +110,7 @@ export default class Stage {
         const panel = this.webPanel;
         const message: Message = {
             type: "noProject",
-        }
+        };
         panel.webview.postMessage(message);
     }
 
@@ -140,7 +140,7 @@ export default class Stage {
                 costumes: costumes,
                 data: withData
             },
-        }
+        };
 
         panel.webview.postMessage(message);
     }
@@ -153,7 +153,7 @@ export default class Stage {
                 name: name,
                 costumes: []
             }
-        }
+        };
         panel.webview.postMessage(message);
     }
 
@@ -161,7 +161,7 @@ export default class Stage {
         const panel = this.webPanel;
         const message: Message = {
             type: "removeAllSprites"
-        }
+        };
         panel.webview.postMessage(message);
     }
 
@@ -205,8 +205,8 @@ export default class Stage {
         const panel = this.webPanel;
         const message: Message = {
             type: "requestSaveData",
-        }
-        console.log("Saving...")
+        };
+        console.log("Saving...");
         panel.webview.postMessage(message);
     }
 

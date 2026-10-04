@@ -31,7 +31,7 @@ function getProjectPath() {
     if (activeDocument) {
         const folder = vscode.workspace.getWorkspaceFolder(
             activeDocument.uri
-        )
+        );
 
         if (folder) {
             return folder.uri;
@@ -96,7 +96,7 @@ async function openPreviewer(context: vscode.ExtensionContext) {
 		stage.showNoProject();
 	} else {
 
-		let data: {[k: string]: SpriteState} = {}
+		let data: {[k: string]: SpriteState} = {};
 		try {
 			const file = vscode.Uri.joinPath(projectPath, "project-previewer.json");
 			const stringData = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
@@ -136,7 +136,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			stage.save();
 		})
-	)
+	);
 }
 
 // This method is called when your extension is deactivated

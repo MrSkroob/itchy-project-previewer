@@ -1,6 +1,6 @@
 # itchy-project-previewer README
 
-This is the README for your extension "itchy-project-previewer". After writing up a brief description, we recommend including the following sections.
+This extension is intended to be used in conjunction with Itchy LSP or the Itchy compiler. You may try to use it alone, but I don't think you'll find much use for it. 
 
 ## Features
 
