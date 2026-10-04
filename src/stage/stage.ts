@@ -1,4 +1,4 @@
-import { Message, SpriteData } from "./messageTypes";
+import { Message, SpriteData, SpriteState } from "./messageTypes";
 
 
 interface VsCodeApi {
@@ -55,21 +55,13 @@ type PropertyDefinition =
         readonly: boolean
     };
 
-// interface PropertyDefinition {
-//     options?: Option[];
-//     property: EditableProperty;
-//     kind: "number" | "string";
-//     label: string;
-// }
-
-
 // html element
 interface Option {
     name: string,
     value: string
 }
 
-
+const clamp = (num: number, min: number, max: number) => Math.min(Math.max(num, min), max);
 const COPY_ICON =
     "M4 4V1h11v11h-3v3H1V4h3zm1 0h7v7h2V2H5v2zm6 1H2v9h9V5z";
 
@@ -139,12 +131,20 @@ class PropertyViewer {
             this.select = select;
             this.propertyValueNode.appendChild(select);
             this.select.addEventListener("change", this.onChange)
+            this.select.style.minWidth = "120px";
         } else {
             const input = document.createElement("input");
             input.readOnly = this.readonly;
             this.input = input;
             this.propertyValueNode.appendChild(input);
             this.propertyValueNode.addEventListener("change", this.onChange)
+
+            if (property.kind == "string") {
+                this.input.style.minWidth = "100px";
+            }
+            else if (property.kind == "number") {
+                this.input.style.minWidth = "45px";
+            }
         }
 
         const copyButton =
@@ -328,7 +328,7 @@ function bringToFront(sprite: Sprite) {
     }
 
     spriteOrder.push(name);
-    sprite.setLayer(spriteOrder.length);
+    // sprite.setLayer(spriteOrder.length);
 
     updateLayers();
 }
@@ -341,7 +341,7 @@ function updateLayers() {
         if (!sprite) {
             return;
         }
-
+        sprite.setLayer(layer);
         sprite.getSprite().style.zIndex = String(layer + 1);
     });
 }
@@ -373,6 +373,10 @@ class Sprite {
 
     private trueX = 0;
     private trueY = 0;
+
+    public getLayer() {
+        return this._layer;
+    }
 
     public setLayer(value: number) {
         this._layer = value;
@@ -497,7 +501,7 @@ class Sprite {
         this._costumeNumber = index;
 
         this.setRotation(this._rotation - 90);
-
+        this.setSize(this._size / 100)
         this.sprite.replaceChildren(image);
     }
 
@@ -554,11 +558,17 @@ class Sprite {
     public updatePosition() {
         // Always use the logical 480x360 coordinate system.
         // CSS scaling handles how large the stage appears on screen.
+        let x = Math.round(this.trueX);
+        let y = Math.round(this.trueY);
+
+        x = clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2)
+        y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2)
+
         this.sprite.style.left =
-            `${STAGE_WIDTH / 2 + this.trueX}px`;
+            `${STAGE_WIDTH / 2 + Math.round(this.trueX)}px`;
 
         this.sprite.style.top =
-            `${STAGE_HEIGHT / 2 - this.trueY}px`;
+            `${STAGE_HEIGHT / 2 - Math.round(this.trueY)}px`;
     }
 
     public remove() {
@@ -596,7 +606,7 @@ class Sprite {
         // this._y = pointer.y;
 
         this.trueX = pointer.x - this.offsetX;
-        this.trueY = pointer.y - this.offsetY;
+        this.trueY = pointer.y - this.offsetY;        
 
         this.updatePosition();
     }
@@ -633,8 +643,8 @@ class Sprite {
         this.trueX = pointer.x - this.offsetX;
         this.trueY = pointer.y - this.offsetY;
 
-        this._x = this.trueX;
-        this._y = this.trueY;
+        this._x = Math.round(this.trueX);
+        this._y = Math.round(this.trueY);
 
         this.offsetX = 0;
         this.offsetY = 0;
@@ -642,7 +652,49 @@ class Sprite {
         this.updatePosition();
         updateViewers(this);
     };
+
+    public toJSON(): SpriteState {
+        return {
+            name: this.name,
+            size: this.size,
+            x: this.x,
+            y: this.y,
+            layer: this.layer,
+            costumeNumber: this.costumeNumber,
+            rotation: this.rotation,
+            rotationStyle: this.rotationStyle
+        }
+    }
+
+    public fromJSON(state: SpriteState) {
+        this.x = state.x;
+        this.y = state.y;
+        this.name = state.name;
+        this._layer = state.layer;
+        this.rotation = state.rotation;
+        this.size = state.size;
+        this.rotationStyle = state.rotationStyle;
+        this.costumeNumber = state.costumeNumber;
+    }
 }
+
+
+function exportSpriteData() {
+    const spriteData: SpriteState[] = [];
+    sprites.forEach(sprite => {
+        spriteData.push(sprite.toJSON())
+    });
+
+    const message: Message = {
+        type: "postSaveData",
+        stageState: spriteData
+    };
+
+    console.log("Sending save data...")
+
+    vscode.postMessage(message);
+}
+
 
 function showNoProject() {
     removeAllSprites();
@@ -657,7 +709,7 @@ function showNoProject() {
 }
 
 
-function addSprite(spriteData: SpriteData) {
+function addSprite(spriteData: SpriteData, withData?: SpriteState) {
     removeSprite(spriteData.name);
 
     const sprite = new Sprite(
@@ -666,11 +718,31 @@ function addSprite(spriteData: SpriteData) {
         spriteData.costumes
     );
 
+    if (withData) {
+        sprite.fromJSON(withData);
+    }
+
     sprites.set(spriteData.name, sprite);
 
     if (spriteData.name.toLowerCase() !== "stage") {
         spriteOrder.push(spriteData.name);
+        spriteOrder.sort((a, b) => {
+            const layer1 = sprites.get(a)!.getLayer();
+            const layer2 = sprites.get(b)!.getLayer();
+
+            if (layer1 == layer2) {
+                return 0;
+            }
+            else if (layer1 > layer2) {
+                return 1;
+            }
+            else {
+                return -1;
+            }
+        })
     }
+
+    console.log(spriteOrder);
 
     updateLayers();
 
@@ -713,7 +785,10 @@ window.addEventListener("message", event => {
 
     switch (message.type) {
         case "addSprite":
-            addSprite(message.sprite!);
+            const sprite = addSprite(message.sprite!);
+            if (message.sprite?.data) {
+                sprite.fromJSON(message.sprite.data);
+            }
             break;
 
         case "removeSprite":
@@ -726,6 +801,10 @@ window.addEventListener("message", event => {
 
         case "noProject":
             showNoProject();
+            break;
+            
+        case "requestSaveData":
+            exportSpriteData();
             break;
     }
 });

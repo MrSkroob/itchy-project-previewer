@@ -10,6 +10,7 @@
   var spriteProperties = document.getElementById("sprite-properties");
   var propertyTemplate = document.querySelector("template");
   var selectedSprite;
+  var clamp = (num, min, max) => Math.min(Math.max(num, min), max);
   var COPY_ICON = "M4 4V1h11v11h-3v3H1V4h3zm1 0h7v7h2V2H5v2zm6 1H2v9h9V5z";
   var CHECK_ICON = "M6.27 10.87 2.7 7.3l1.06-1.06 2.51 2.51 5.97-5.97L13.3 3.84z";
   var PropertyViewer = class {
@@ -49,12 +50,18 @@
         this.select = select;
         this.propertyValueNode.appendChild(select);
         this.select.addEventListener("change", this.onChange);
+        this.select.style.minWidth = "120px";
       } else {
         const input = document.createElement("input");
         input.readOnly = this.readonly;
         this.input = input;
         this.propertyValueNode.appendChild(input);
         this.propertyValueNode.addEventListener("change", this.onChange);
+        if (property.kind == "string") {
+          this.input.style.minWidth = "100px";
+        } else if (property.kind == "number") {
+          this.input.style.minWidth = "45px";
+        }
       }
       const copyButton = this.node.querySelector(".copy-button");
       copyButton?.addEventListener("click", async () => {
@@ -194,7 +201,6 @@
       spriteOrder.splice(index, 1);
     }
     spriteOrder.push(name);
-    sprite.setLayer(spriteOrder.length);
     updateLayers();
   }
   function updateLayers() {
@@ -203,6 +209,7 @@
       if (!sprite) {
         return;
       }
+      sprite.setLayer(layer);
       sprite.getSprite().style.zIndex = String(layer + 1);
     });
   }
@@ -225,6 +232,9 @@
     offsetY = 0;
     trueX = 0;
     trueY = 0;
+    getLayer() {
+      return this._layer;
+    }
     setLayer(value) {
       this._layer = value;
     }
@@ -314,6 +324,7 @@
       }
       this._costumeNumber = index;
       this.setRotation(this._rotation - 90);
+      this.setSize(this._size / 100);
       this.sprite.replaceChildren(image);
     }
     setSize(size) {
@@ -355,8 +366,12 @@
       image.style.transform = `rotate(${rotation}deg)`;
     }
     updatePosition() {
-      this.sprite.style.left = `${STAGE_WIDTH / 2 + this.trueX}px`;
-      this.sprite.style.top = `${STAGE_HEIGHT / 2 - this.trueY}px`;
+      let x = Math.round(this.trueX);
+      let y = Math.round(this.trueY);
+      x = clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
+      y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
+      this.sprite.style.left = `${STAGE_WIDTH / 2 + Math.round(this.trueX)}px`;
+      this.sprite.style.top = `${STAGE_HEIGHT / 2 - Math.round(this.trueY)}px`;
     }
     remove() {
       if (selectedSprite && selectedSprite.name === this.name) {
@@ -401,14 +416,48 @@
       const pointer = this.pointerToScratch(event);
       this.trueX = pointer.x - this.offsetX;
       this.trueY = pointer.y - this.offsetY;
-      this._x = this.trueX;
-      this._y = this.trueY;
+      this._x = Math.round(this.trueX);
+      this._y = Math.round(this.trueY);
       this.offsetX = 0;
       this.offsetY = 0;
       this.updatePosition();
       updateViewers(this);
     };
+    toJSON() {
+      return {
+        name: this.name,
+        size: this.size,
+        x: this.x,
+        y: this.y,
+        layer: this.layer,
+        costumeNumber: this.costumeNumber,
+        rotation: this.rotation,
+        rotationStyle: this.rotationStyle
+      };
+    }
+    fromJSON(state) {
+      this.x = state.x;
+      this.y = state.y;
+      this.name = state.name;
+      this._layer = state.layer;
+      this.rotation = state.rotation;
+      this.size = state.size;
+      this.rotationStyle = state.rotationStyle;
+      this.costumeNumber = state.costumeNumber;
+    }
   };
+  function exportSpriteData() {
+    const spriteData = [];
+    sprites.forEach((sprite) => {
+      spriteData.push(sprite.toJSON());
+    });
+    const message = {
+      type: "postSaveData",
+      stageState: spriteData
+    };
+    console.log("Sending save data...");
+    vscode.postMessage(message);
+  }
   function showNoProject() {
     removeAllSprites();
     const message = document.createElement("div");
@@ -416,17 +465,32 @@
     message.textContent = "Open an Itchy project to preview the stage.";
     stage.appendChild(message);
   }
-  function addSprite(spriteData) {
+  function addSprite(spriteData, withData) {
     removeSprite(spriteData.name);
     const sprite = new Sprite(
       spriteData.name,
       stage,
       spriteData.costumes
     );
+    if (withData) {
+      sprite.fromJSON(withData);
+    }
     sprites.set(spriteData.name, sprite);
     if (spriteData.name.toLowerCase() !== "stage") {
       spriteOrder.push(spriteData.name);
+      spriteOrder.sort((a, b) => {
+        const layer1 = sprites.get(a).getLayer();
+        const layer2 = sprites.get(b).getLayer();
+        if (layer1 == layer2) {
+          return 0;
+        } else if (layer1 > layer2) {
+          return 1;
+        } else {
+          return -1;
+        }
+      });
     }
+    console.log(spriteOrder);
     updateLayers();
     return sprite;
   }
@@ -454,7 +518,10 @@
     const message = event.data;
     switch (message.type) {
       case "addSprite":
-        addSprite(message.sprite);
+        const sprite = addSprite(message.sprite);
+        if (message.sprite?.data) {
+          sprite.fromJSON(message.sprite.data);
+        }
         break;
       case "removeSprite":
         removeSprite(message.sprite.name);
@@ -464,6 +531,9 @@
         break;
       case "noProject":
         showNoProject();
+        break;
+      case "requestSaveData":
+        exportSpriteData();
         break;
     }
   });

@@ -1,13 +1,19 @@
 import * as vscode from 'vscode';
 import * as fs from "fs";
 // import * as path from "path";
-import { Message, SpriteData } from "./stage/messageTypes";
+import { Message, SpriteState } from "./stage/messageTypes";
 
 
 export default class Stage {
     private html: string;
     private webPanel: vscode.WebviewPanel;
     private projectPath?: vscode.Uri | null;
+    private closing: boolean = false;
+    private disposed: boolean = false;
+
+    public isDisposed() {
+        return this.disposed;
+    }
 
     constructor(context: vscode.ExtensionContext) {
         const extensionUri = context.extensionUri;
@@ -23,7 +29,7 @@ export default class Stage {
         );
         this.html = this.getTemplate(this.webPanel.webview, extensionUri);
         this.webPanel.webview.html = this.html;
-
+        this.disposed = false;
         this.webPanel.webview.onDidReceiveMessage(async message => {
             if (!this.projectPath) {
                 return;
@@ -57,8 +63,39 @@ export default class Stage {
                     );
                     break;
                 }
+                case "postSaveData": {
+                    const data: SpriteState[] = message.stageState;
+                    const json = Object.fromEntries(
+                        data.map(sprite => [sprite.name, sprite])
+                    );
+
+                    if (this.projectPath) {
+                        const directory = this.projectPath;
+                        const file = vscode.Uri.joinPath(directory, "project-previewer.json");
+
+                        await vscode.workspace.fs.writeFile(
+                            file,
+                            new TextEncoder().encode(
+                                JSON.stringify(json, null, 4)
+                            )
+                        );
+                    }
+
+                    vscode.window.setStatusBarMessage(
+                        "$(check) Stage state saved",
+                        2000
+                    );
+
+                    if (this.closing) {
+                        this.webPanel.dispose();
+                    }
+                }
             }
         });
+
+        this.webPanel.onDidDispose(() => {
+            this.disposed = true;
+        })
     }
 
     public setProjectPath(projectPath?: vscode.Uri | null) {
@@ -77,7 +114,7 @@ export default class Stage {
         panel.webview.postMessage(message);
     }
 
-    public async addSprite(name: string) {
+    public async addSprite(name: string, withData?: SpriteState) {
         if (!this.projectPath) {
             return;
         }
@@ -94,12 +131,14 @@ export default class Stage {
             return panel.webview.asWebviewUri(fileUri).toString();
         });
 
+        costumes.sort();
         
         const message: Message = {
             type: "addSprite",
             sprite: {
                 name: name,
-                costumes: costumes
+                costumes: costumes,
+                data: withData
             },
         }
 
@@ -160,5 +199,27 @@ export default class Stage {
             .replace("{{JS_URI}}", jsUri.toString());
 
         return html;
+    }
+
+    public save() {
+        const panel = this.webPanel;
+        const message: Message = {
+            type: "requestSaveData",
+        }
+        console.log("Saving...")
+        panel.webview.postMessage(message);
+    }
+
+    public saveAndClose() {
+        if (!this.projectPath) {
+            this.webPanel.dispose();
+            return;
+        }
+
+        if (this.closing) {
+            return;
+        }
+        this.closing = true;
+        this.save();
     }
 }

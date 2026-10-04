@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 // import * as commands from "./commands";
 import Stage from "./previewer";
 import { watchSprites } from "./watcher";
+import { SpriteState } from './stage/messageTypes';
 
 
 let stage: Stage | null = null;
@@ -11,7 +12,7 @@ let watcher: vscode.FileSystemWatcher | null;
 
 
 function getStage(context: vscode.ExtensionContext) {
-	if (!stage) {
+	if (!stage || stage.isDisposed()) {
 		return new Stage(context);
 	}
 	return stage;
@@ -45,7 +46,7 @@ function getProjectPath() {
 }
 
 
-async function updateStage(stage: Stage, projectPath: vscode.Uri) {
+async function updateStage(stage: Stage, projectPath: vscode.Uri, data?: {[k: string]: SpriteState}) {
 	stage.removeAllSprites();
 
 	if (!watcher) {
@@ -70,15 +71,20 @@ async function updateStage(stage: Stage, projectPath: vscode.Uri) {
 		if (!hasCostumesFolder) {
 			continue;
 		}
-
-		stage.addSprite(name);
+		
+		if (data) {
+			stage.addSprite(name, data[name]);
+		}
+		else {
+			stage.addSprite(name);
+		}
 	}
 }
 
 
 async function openPreviewer(context: vscode.ExtensionContext) {
 	let projectPath = getProjectPath();
-	const stage = getStage(context);
+	stage = getStage(context);
 	stage.setProjectPath(projectPath);
 
 	if (watcher) {
@@ -89,10 +95,18 @@ async function openPreviewer(context: vscode.ExtensionContext) {
 	if (!projectPath) {
 		stage.showNoProject();
 	} else {
-		await updateStage(stage, projectPath);
+
+		let data: {[k: string]: SpriteState} = {}
+		try {
+			const file = vscode.Uri.joinPath(projectPath, "project-previewer.json");
+			const stringData = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+			data = JSON.parse(stringData);
+		} catch(error) {
+			console.log(error);
+		}
+
+		await updateStage(stage, projectPath, data);
 	}
-
-
 }
 
 
@@ -106,7 +120,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.commands.registerCommand("itchy-project-previewer.closePreviewer", () => {
-			if (!stage) {
+			if (!stage || stage.isDisposed()) {
 				return;
 			}
 			stage.getWebPanel().dispose();
@@ -114,6 +128,13 @@ export function activate(context: vscode.ExtensionContext) {
 				watcher.dispose();
 				watcher = null;
 			}
+		}),
+
+		vscode.commands.registerCommand('itchy-project-previewer.saveStage', () => {
+			if (!stage) {
+				return;
+			}
+			stage.save();
 		})
 	)
 }
@@ -123,5 +144,5 @@ export function deactivate() {
 	if (!stage) {
 		return;
 	}
-	stage.getWebPanel().dispose();
+	stage.saveAndClose();
 }

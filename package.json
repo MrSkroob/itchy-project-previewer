@@ -20,6 +20,18 @@
       {
         "command": "itchy-project-previewer.closePreviewer",
         "title": "Close Previewer"
+      },
+      {
+        "command": "itchy-project-previewer.saveStage",
+        "title": "Save Stage"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "itchy-project-previewer.saveStage",
+        "key": "ctrl+s",
+        "mac": "cmd+s",
+        "when": "activeWebviewPanelId == 'itchyStage'"
       }
     ]
   },
