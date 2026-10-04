@@ -14,8 +14,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "itchy-project-previewer.helloWorld",
-        "title": "Hello World"
+        "command": "itchy-project-previewer.openPreviewer",
+        "title": "Open Previewer"
+      },
+      {
+        "command": "itchy-project-previewer.closePreviewer",
+        "title": "Close Previewer"
       }
     ]
   },
