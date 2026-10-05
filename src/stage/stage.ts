@@ -1,5 +1,4 @@
-import { Message, SpriteData, SpriteState } from "./messageTypes";
-
+import { CostumeData, Message, SpriteData, SpriteState } from "../messageTypes";
 
 interface VsCodeApi {
     postMessage(message: unknown): void;
@@ -30,13 +29,20 @@ type NumberProperty =
     | "y"
     | "size"
     | "rotation"
-    | "costumeNumber"
+    | "costumeNumber";
     // | "rotationStyle"
 
 
 type StringProperty =
     | "rotationStyle"
-    | "name";
+    | "name"
+    | "costumeName";
+
+// html element
+interface Option {
+    name: string,
+    value: string | number
+}
 
 type PropertyDefinition =
     | {
@@ -54,11 +60,6 @@ type PropertyDefinition =
         readonly: boolean
     };
 
-// html element
-interface Option {
-    name: string,
-    value: string
-}
 
 const clamp = (num: number, min: number, max: number) => Math.min(Math.max(num, min), max);
 const COPY_ICON =
@@ -122,6 +123,7 @@ class CodeSpaceViewer {
     y: number = 0;
     rotation: number = 90;
     rotationStyle: string = "all around";
+    costumeName: string = "";
 
     public setValue(propertyName: string, value: any) {
         switch (propertyName) {
@@ -140,21 +142,34 @@ class CodeSpaceViewer {
             case "rotation":
                 this.rotation = value;
                 break;
+            case "costumeName":
+                this.costumeName = value;
+                break;
             default:
                 break;
         }
-        console.log(this.getCode());
         codeSpace.textContent = this.getCode();
     }
 
     public getCode() {
-        return `event event_whenflagclicked() {
+        if (this.costumeName) {
+            return `event event_whenflagclicked() {
+    motion_pointindirection(${this.rotation});
+    motion_gotoxy(${this.x}, ${this.y});
+    looks_setsizeto(${this.size});
+    looks_switchcostumeto("${this.costumeName}");
+    motion_setrotationstyle("${this.rotationStyle}");
+}
+`;
+        } else {
+            return `event event_whenflagclicked() {
     motion_pointindirection(${this.rotation});
     motion_gotoxy(${this.x}, ${this.y});
     looks_setsizeto(${this.size});
     motion_setrotationstyle("${this.rotationStyle}");
-}
-`;
+}`
+        }
+
     }
 }
 
@@ -212,22 +227,7 @@ class PropertyViewer {
         this.propertyNameNode.textContent = property.label;
 
         if (property.options) {
-            const select = document.createElement("select");
-
-            for (const option of property.options) {
-                const selection = document.createElement("option");
-
-                selection.value = option.value;
-                selection.textContent = option.name;
-
-                select.appendChild(selection);
-            }
-
-            this.select = select;
-            this.select.className = "text";
-            this.propertyValueNode.appendChild(select);
-            this.select.addEventListener("change", this.onChange);
-            this.select.style.minWidth = "120px";
+            this.propertyValueNode.appendChild(this.buildOptions(property.options))
         } else {
             const input = document.createElement("input");
             input.readOnly = this.readonly;
@@ -246,6 +246,57 @@ class PropertyViewer {
 
         handleCopyButton(button, this.getInput());
         parent.appendChild(this.node);
+    }
+
+    private buildOptions(options: Option[]) {
+        let select: HTMLSelectElement
+        if (this.select) {
+            this.select.replaceChildren();
+            select = this.select;
+        } else {
+            select = document.createElement("select");
+        }
+
+        for (const option of options) {
+            const selection = document.createElement("option");
+
+            selection.value = String(option.value);
+            selection.textContent = option.name;
+
+            select.appendChild(selection);
+        }
+
+        this.select = select;
+        this.select.className = "text";
+        this.propertyValueNode.appendChild(select);
+        this.select.addEventListener("change", this.onChange);
+        this.select.style.minWidth = "120px";
+
+        return select
+    }
+
+    private costumeOptions(sprite: Sprite) {
+        const options: Option[] = [];
+        sprite.getCostumeMap().forEach(
+            (_: number, costumeName: string) => {
+                options.push({
+                    name: costumeName,
+                    value: costumeName
+                })
+            }
+        );
+
+        return options;
+    }
+
+    private getFillInOptions(sprite: Sprite, optionName: string): Option[] | null {
+        switch (optionName) {
+            case "costumeName":
+                return this.costumeOptions(sprite);        
+            default:
+                break;
+        }
+        return null;
     }
 
     public getInput() {
@@ -300,6 +351,11 @@ class PropertyViewer {
     public selectSprite(sprite: Sprite) {
         this.selectedSprite = sprite;
         this.update();
+
+        // we do this work outside of update because we don't want to refresh the list every time.
+        const options = this.getFillInOptions(sprite, this.property.property)
+        if (!options) { return; }
+        this.buildOptions(options);
     }
 
     public clear() {
@@ -344,6 +400,13 @@ const properties: PropertyDefinition[] = [
         ], 
         readonly: false
     },
+    {
+        property: "costumeName",
+        label: "Costume Name",
+        kind: "string",
+        options: [], // to be filled in
+        readonly: false
+    }
 ];
 
 const viewers: PropertyViewer[] = [];
@@ -428,8 +491,6 @@ function updateLayers() {
 class Sprite {
     private _size = 100;
     // Scratch coordinates
-    private _x = 0;
-    private _y = 0;
 
     private _layer = 0;
     private _rotation = 90;
@@ -438,8 +499,9 @@ class Sprite {
 
     name: string;
 
-    costumes: string[];
-    private costumeElements: HTMLImageElement[] = [];
+    costumes: CostumeData[];
+    private costume: HTMLImageElement; // the actual image element that gets updated
+    private costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
 
     private sprite: HTMLDivElement;
     private stage: HTMLElement;
@@ -452,6 +514,10 @@ class Sprite {
     private trueX = 0;
     private trueY = 0;
 
+    public getCostumeMap() {
+        return this.costumeMap;
+    }
+
     public getLayer() {
         return this._layer;
     }
@@ -461,27 +527,40 @@ class Sprite {
     }
 
     public get costumeNumber() {
-        return this._costumeNumber + 1;
+        return this._costumeNumber;
     }
 
     public set costumeNumber(value: number) {
         // costume switcher updates _costumeNumber internally
-        this.switchCostumeTo(value - 1);
+        this.switchCostumeTo(value);
+    }
+
+    public get costumeName() {
+        return this.getCostume(this._costumeNumber)!.name;
+    }
+
+    public set costumeName(value: string) {
+        const costumeIndex = this.costumeMap.get(value);
+        if (costumeIndex === undefined) {
+            return;
+        }
+
+        this.switchCostumeTo(costumeIndex!);
     }
 
     public get size() {
-        return this._size;
+        return this._size * 100;
     }
 
     public set size(value: number) {
         // clamp
 
-        this._size = value;
-        this.setSize(value / 100);
+        this._size = value / 100;
+        this.setSize(this._size);
     }
 
     public get x() {
-        return this._x;
+        return Math.round(this.trueX);
     }
 
     public set x(value: number) {
@@ -490,7 +569,7 @@ class Sprite {
     }
 
     public get y() {
-        return this._y;
+        return Math.round(this.trueY);
     }
 
     public set y(value: number) {
@@ -503,7 +582,7 @@ class Sprite {
     }
 
     public get rotation() {
-        return this._rotation;
+        return this._rotation + 90;
     }
 
     public set rotation(value: number) {
@@ -516,16 +595,18 @@ class Sprite {
 
     public set rotationStyle(value: string) {
         this._rotationStyle = value;
-        this.setRotation(this._rotation - 90);
+        this.setRotation(this._rotation);
     }
 
-    constructor(name: string, stage: HTMLElement, costumes: string[]) {
+    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
         this.name = name;
         this.costumes = costumes;
         this.stage = stage;
 
         this.sprite = document.createElement("div");
         this.sprite.dataset.spriteId = name;
+
+        this.costumeMap = new Map();
 
         if (name.toLowerCase() !== "stage") {
             this.sprite.className = "sprite";
@@ -538,19 +619,21 @@ class Sprite {
             this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
         }
 
+        let index = 0;
         for (const costume of costumes) {
-            const image = document.createElement("img");
-
-            image.src = costume;
-            image.draggable = false;
-
-            this.costumeElements.push(image);
+            this.costumeMap.set(costume.name, index);
+            index += 1
         }
+
+        const image = document.createElement("img");
+        image.draggable = false;
+        this.costume = image;
+        this.sprite.replaceChildren(image);
 
         // Actually add the sprite to the HTML stage
         this.stage.appendChild(this.sprite);
 
-        if (this.costumeElements.length > 0) {
+        if (this.costumes.length > 0) {
             this.switchCostumeTo(0);
         }
 
@@ -562,35 +645,28 @@ class Sprite {
     }
 
     private getCostume(index: number) {
-        if (index < 0 || index >= this.costumeElements.length) {
+        if (index < 0 || index >= this.costumes.length) {
             return;
         }
-
-        return this.costumeElements[index];
+        return this.costumes[index];
     }
 
     public switchCostumeTo(index: number) {
-        const image = this.getCostume(index);
+        // expects indexing from 0
+        const image = this.costumes[index];
 
         if (!image) {
             return;
         }
 
         this._costumeNumber = index;
-
-        this.setRotation(this._rotation - 90);
-        this.setSize(this._size / 100);
-        this.sprite.replaceChildren(image);
+        this.costume.src = image.fsPath;
     }
 
     public setSize(size: number) {
         // this expects a number where 0 = 0% and 1 = 100%.
-        this._size = size * 100;
-        const image = this.getCostume(this._costumeNumber);
-        if (!image) {
-            return;
-        }
-
+        this._size = size;
+        const image = this.costume;
         const minScale = Math.max(
             5 / image.naturalWidth,
             5 / image.naturalHeight
@@ -609,14 +685,9 @@ class Sprite {
 
     public setRotation(degrees: number) {
         // this expects rotational values starting from 0
-        const image = this.getCostume(this._costumeNumber);
+        const image = this.costume;
 
-        if (!image) {
-            return;
-        }
-
-        let rotation = degrees;
-        this._rotation = degrees + 90;
+        this._rotation = degrees;
 
         switch (this._rotationStyle) {
             case "left-right":
@@ -626,10 +697,9 @@ class Sprite {
                         : "scaleX(1)";
                 break;
             case "all around":
-                image.style.transform = `rotate(${rotation}deg)`;
+                image.style.transform = `rotate(${this._rotation}deg)`;
                 break;
             case "don't rotate":
-                rotation = 0;
                 image.style.transform = `rotate(0deg)`;
                 break;
             default:
@@ -647,10 +717,10 @@ class Sprite {
         y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
 
         this.sprite.style.left =
-            `${STAGE_WIDTH / 2 + Math.round(this.trueX)}px`;
+            `${STAGE_WIDTH / 2 + x}px`;
 
         this.sprite.style.top =
-            `${STAGE_HEIGHT / 2 - Math.round(this.trueY)}px`;
+            `${STAGE_HEIGHT / 2 - y}px`;
     }
 
     public remove() {
@@ -724,9 +794,6 @@ class Sprite {
         // Preserve the original click offset.
         this.trueX = pointer.x - this.offsetX;
         this.trueY = pointer.y - this.offsetY;
-
-        this._x = Math.round(this.trueX);
-        this._y = Math.round(this.trueY);
 
         this.offsetX = 0;
         this.offsetY = 0;
@@ -823,8 +890,6 @@ function addSprite(spriteData: SpriteData, withData?: SpriteState) {
             }
         });
     }
-
-    console.log(spriteOrder);
 
     updateLayers();
 

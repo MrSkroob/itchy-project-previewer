@@ -52,7 +52,7 @@ async function main() {
 		sourcemap: !production,
 		sourcesContent: false,
 		platform: 'browser',
-		outfile: 'src/stage/stage.js',
+		outfile: 'dist/stage/stage.js',
 		logLevel: 'silent',
 		plugins: [
 			esbuildProblemMatcherPlugin,

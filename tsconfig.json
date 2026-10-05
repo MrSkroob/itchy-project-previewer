@@ -3,7 +3,9 @@
         "module": "Node16",
         "target": "ES2022",
         "lib": [
-            "ES2022"
+            "ES2022",
+            "DOM",
+            "DOM.Iterable",
         ],
         "types": [
             "node",
@@ -11,11 +13,12 @@
         ],
         "sourceMap": true,
         "rootDir": "src",
+        "outDir": "dist",
         "strict": true, /* enable all strict type-checking options */
         /* Additional Checks */
         // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
         // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
         // "noUnusedParameters": true,  /* Report errors on unused parameters. */
     },
-    "exclude": ["src/stage/stage.ts"],
+    // "exclude": ["src/stage/stage.ts"],
 }

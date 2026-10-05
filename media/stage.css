@@ -189,34 +189,3 @@ input:read-only {
 #text-contents {
     white-space: pre-wrap;
 }
-
-@media (min-width: 900px) {
-    #editor {
-        flex-direction: row;
-    }
-
-    #property-editor {
-        order: 0;
-        width: 35%;
-        height: 100%;
-
-        flex: 0 0 35%;
-        flex-direction: column;
-        flex-wrap: nowrap;
-
-        justify-content: flex-start;
-    }
-
-    #stage-pane {
-        order: 1;
-        width: 65%;
-        height: 100%;
-
-        flex: 1 1 auto;
-    }
-
-    .property {
-        width: 100%;
-        justify-content: space-between;
-    }
-}

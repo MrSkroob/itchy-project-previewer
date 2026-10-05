@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 // import * as commands from "./commands";
 import Stage from "./previewer";
 import { watchSprites } from "./watcher";
-import { SpriteState } from './stage/messageTypes';
+import { SpriteState } from './messageTypes';
 
 
 let stage: Stage | null = null;

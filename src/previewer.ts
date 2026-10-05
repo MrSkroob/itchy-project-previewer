@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from "fs";
 // import * as path from "path";
-import { Message, SpriteState } from "./stage/messageTypes";
+import { Message, SpriteState } from "./messageTypes";
+import { basename, extname } from 'path';
 
 
 export default class Stage {
@@ -20,7 +21,7 @@ export default class Stage {
         
         this.webPanel = vscode.window.createWebviewPanel(
             "itchyStage",
-            "Itchy Stage",
+            "Project Preview",
             vscode.ViewColumn.Beside, 
             {
                 enableScripts: true,
@@ -127,8 +128,10 @@ export default class Stage {
         )
         .map(([filename]) => {
             const fileUri = vscode.Uri.joinPath(costumesPath, filename);
-
-            return panel.webview.asWebviewUri(fileUri).toString();
+            return {
+                name: basename(fileUri.fsPath, extname(fileUri.fsPath)),
+                fsPath: panel.webview.asWebviewUri(fileUri).toString()
+            };
         });
 
         costumes.sort();
@@ -167,10 +170,12 @@ export default class Stage {
 
     private getTemplate(webview: vscode.Webview, extensionUri: vscode.Uri) {
         // initialises
-        const htmlPath = vscode.Uri.joinPath(
+        const mediaPath = vscode.Uri.joinPath(
             extensionUri,
-            "src",
-            "stage",
+            "media"
+        )
+        const htmlPath = vscode.Uri.joinPath(
+            mediaPath,
             "stage.html"
         );
 
@@ -178,17 +183,14 @@ export default class Stage {
 
         const cssUri = webview.asWebviewUri(
             vscode.Uri.joinPath(
-                extensionUri,
-                "src",
-                "stage",
+                mediaPath,
                 "stage.css"
             )
         );
 
         const jsUri = webview.asWebviewUri(
             vscode.Uri.joinPath(
-                extensionUri,
-                "src",
+                vscode.Uri.file(__dirname),
                 "stage",
                 "stage.js"
             )

@@ -1,6 +1,12 @@
+export interface CostumeData {
+    name: string;
+    fsPath: string;
+}
+
+
 export interface SpriteData {
     name: string;
-    costumes: string[];
+    costumes: CostumeData[];
     data?: SpriteState;
 }
 
