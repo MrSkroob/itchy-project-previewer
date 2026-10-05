@@ -160,6 +160,7 @@ properties.forEach(property => {
 const sprites: Map<string, Sprite | Backdrop> = new Map<string, Sprite>();
 const spriteOrder: string[] = [];
 
+let stageScale = 1;
 
 function resizeStage() {
     const parent = stagePane;
@@ -168,7 +169,7 @@ function resizeStage() {
         return;
     }
 
-    let stageScale = Math.min(
+    stageScale = Math.min(
         parent.clientWidth / STAGE_WIDTH,
         parent.clientHeight / STAGE_HEIGHT
     );
@@ -249,9 +250,9 @@ function addSprite(spriteData: SpriteData, withData?: ObjectState) {
     const isStage = spriteData.name.toLowerCase() === "stage"
 
     if (isStage) {
-        sprite = new Backdrop(spriteData.name, stagePane, spriteData.costumes);
+        sprite = new Backdrop(spriteData.name, stage, spriteData.costumes);
     } else {
-        sprite = new Sprite(spriteData.name, stagePane, spriteData.costumes);
+        sprite = new Sprite(spriteData.name, stage, spriteData.costumes);
     }
 
     if (withData) {

@@ -111,6 +111,11 @@ export class Backdrop extends BaseInstance {
         super(name, stage, costumes);
         this.sprite.className = "backdrop";
         this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
+        this.sprite.style.left =
+            `${STAGE_WIDTH / 2}px`;
+
+        this.sprite.style.top =
+            `${STAGE_HEIGHT / 2}px`;
     }
 
     public setLayer() {
