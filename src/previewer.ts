@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from "fs";
 // import * as path from "path";
-import { Message, SpriteState } from "./messageTypes";
+import { Message, ObjectState } from "./messageTypes";
 import { basename, extname } from 'path';
 
 
@@ -65,7 +65,7 @@ export default class Stage {
                     break;
                 }
                 case "postSaveData": {
-                    const data: SpriteState[] = message.stageState;
+                    const data: ObjectState[] = message.stageState;
                     const json = Object.fromEntries(
                         data.map(sprite => [sprite.name, sprite])
                     );
@@ -115,7 +115,7 @@ export default class Stage {
         panel.webview.postMessage(message);
     }
 
-    public async addSprite(name: string, withData?: SpriteState) {
+    public async addSprite(name: string, withData?: ObjectState) {
         if (!this.projectPath) {
             return;
         }
@@ -190,7 +190,8 @@ export default class Stage {
 
         const jsUri = webview.asWebviewUri(
             vscode.Uri.joinPath(
-                vscode.Uri.file(__dirname),
+                vscode.Uri.file(__filename),
+                "..",
                 "stage",
                 "stage.js"
             )

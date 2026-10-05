@@ -1,19 +1,7 @@
-import { CostumeData, Message, SpriteData, SpriteState } from "../messageTypes";
-
-interface VsCodeApi {
-    postMessage(message: unknown): void;
-    getState(): unknown;
-    setState(state: unknown): void;
-}
-
-// trust me bro
-declare function acquireVsCodeApi(): VsCodeApi;
-
-const vscode = acquireVsCodeApi();
-
-const STAGE_WIDTH = 480;
-const STAGE_HEIGHT = 360;
-const BACKDROP_Z_INDEX = 0;
+import { Message, SpriteData, ObjectState, CostumeData } from "../messageTypes";
+import { BaseSprite, Backdrop } from "./vm/objects";
+import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
+import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
 
 const stage = document.getElementById("stage-container")!;
 const stagePane = document.getElementById("stage-pane")!;
@@ -21,362 +9,98 @@ const stagePane = document.getElementById("stage-pane")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
 
 
-// This is here to shut the linter up
-let selectedSprite: Sprite | undefined;
-
-type NumberProperty = 
-    | "x"
-    | "y"
-    | "size"
-    | "rotation"
-    | "costumeNumber";
-    // | "rotationStyle"
-
-
-type StringProperty =
-    | "rotationStyle"
-    | "name"
-    | "costumeName";
-
-// html element
-interface Option {
-    name: string,
-    value: string | number
-}
-
-type PropertyDefinition =
-    | {
-        options?: Option[];
-        kind: "number";
-        property: NumberProperty;
-        label: string;
-        readonly: boolean
-    }
-    | {
-        options?: Option[];
-        kind: "string";
-        property: StringProperty;
-        label: string;
-        readonly: boolean
-    };
-
-
-const clamp = (num: number, min: number, max: number) => Math.min(Math.max(num, min), max);
-const COPY_ICON =
-    "M4 4V1h11v11h-3v3H1V4h3zm1 0h7v7h2V2H5v2zm6 1H2v9h9V5z";
-
-const CHECK_ICON =
-    "M6.27 10.87 2.7 7.3l1.06-1.06 2.51 2.51 5.97-5.97L13.3 3.84z";
-
-const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
-const copyButtonTemplate = document.getElementById("copy-button-template") as HTMLTemplateElement;
-const spritePropertiesCode = document.getElementById("code-template") as HTMLElement;
-const codeSpace = document.getElementById("text-contents") as HTMLSpanElement;
-
-
-function cloneTemplate(template: HTMLTemplateElement) {
-    return (template.content
-        .cloneNode(true) as DocumentFragment)
-        .firstElementChild as HTMLElement | null;
-}
-
-
-function cloneButton() {
-    return cloneTemplate(copyButtonTemplate)! as HTMLButtonElement;
-}
-
-
-interface HTMLElementWithValue {
-    value: string;
-}
-
-
-function handleCopyButton(button: HTMLButtonElement, input: HTMLElementWithValue) {
-    button.addEventListener("click", async () => {
-        await navigator.clipboard.writeText(
-            input.value
-        );
-
-        const path = button.querySelector<SVGPathElement>(
-            "path"
-        );
-
-        if (!path) {
-            return;
-        }
-
-        path.setAttribute("d", CHECK_ICON);
-
-        setTimeout(() => {
-            path.setAttribute("d", COPY_ICON);
-        }, 1500);
-
-        vscode.postMessage({
-            type: "copiedToClipboard",
-        });
+function updateViewers(sprite: Sprite) {
+    viewers.forEach(viewer => {
+        viewer.selectSprite(sprite);
     });
 }
 
-class CodeSpaceViewer {
-    size: number = 100;
-    x: number = 0;
-    y: number = 0;
-    rotation: number = 90;
-    rotationStyle: string = "all around";
-    costumeName: string = "";
 
-    public setValue(propertyName: string, value: any) {
-        switch (propertyName) {
-            case "size":
-                this.size = value;
-                break;
-            case "x":
-                this.x = value;
-                break;
-            case "y":
-                this.y = value;
-                break;
-            case "rotationStyle":
-                this.rotationStyle = value;
-                break;
-            case "rotation":
-                this.rotation = value;
-                break;
-            case "costumeName":
-                this.costumeName = value;
-                break;
-            default:
-                break;
+class Sprite extends BaseSprite {
+    private dragging = false; // to be moved
+
+    private offsetX = 0;
+    private offsetY = 0;
+
+    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
+        super(name, stage, costumes);
+
+        if (name.toLowerCase() !== "stage") {
+            this.sprite.className = "sprite";
+            this.sprite.addEventListener("pointerdown", this.onMouseDown);
+            this.sprite.addEventListener("pointerup", this.onMouseUp);
+            this.sprite.addEventListener("pointermove", this.onMouseMove);
         }
-        codeSpace.textContent = this.getCode();
     }
 
-    public getCode() {
-        if (this.costumeName) {
-            return `event event_whenflagclicked() {
-    motion_pointindirection(${this.rotation});
-    motion_gotoxy(${this.x}, ${this.y});
-    looks_setsizeto(${this.size});
-    looks_switchcostumeto("${this.costumeName}");
-    motion_setrotationstyle("${this.rotationStyle}");
-}
-`;
-        } else {
-            return `event event_whenflagclicked() {
-    motion_pointindirection(${this.rotation});
-    motion_gotoxy(${this.x}, ${this.y});
-    looks_setsizeto(${this.size});
-    motion_setrotationstyle("${this.rotationStyle}");
-}`
-        }
+    private pointerToScratch(event: PointerEvent) {
+        const stageRect = this.stage.getBoundingClientRect();
 
-    }
-}
+        const scaleX = stageRect.width / STAGE_WIDTH;
+        const scaleY = stageRect.height / STAGE_HEIGHT;
 
+        const stageX =
+            (event.clientX - stageRect.left) / scaleX;
 
-const codeSpaceViewer = new CodeSpaceViewer();
+        const stageY =
+            (event.clientY - stageRect.top) / scaleY;
 
-
-class PropertyViewer {
-    private selectedSprite: Sprite | undefined;
-
-    private node: HTMLElement;
-    private property: PropertyDefinition;
-
-    private propertyNameNode: HTMLElement;
-    private propertyValueNode: HTMLElement;
-
-    private input?: HTMLInputElement;
-    private select?: HTMLSelectElement;
-
-    private readonly: boolean;
-
-    constructor(
-        parent: HTMLElement,
-        template: HTMLTemplateElement,
-        property: PropertyDefinition
-    ) {
-        this.property = property;
-        this.readonly = property.readonly;
-
-        const node = cloneTemplate(template);
-
-        if (!node) {
-            throw new Error("Property template must have a root element.");
-        }
-
-        this.node = node;
-
-        const propertyNameNode =
-            this.node.querySelector<HTMLElement>(".property-name");
-
-        const propertyValueNode =
-            this.node.querySelector<HTMLElement>(".property-input");
-
-        if (!propertyNameNode || !propertyValueNode) {
-            throw new Error("Property template is missing required elements.");
-        }
-
-        const button = cloneButton(); 
-        button.title = "Copy value";
-
-        this.propertyNameNode = propertyNameNode;
-        this.propertyValueNode = propertyValueNode;
-        this.propertyValueNode.appendChild(button);
-
-        this.propertyNameNode.textContent = property.label;
-
-        if (property.options) {
-            this.propertyValueNode.appendChild(this.buildOptions(property.options))
-        } else {
-            const input = document.createElement("input");
-            input.readOnly = this.readonly;
-            this.input = input;
-            this.input.className = "text";
-            this.propertyValueNode.appendChild(input);
-            this.propertyValueNode.addEventListener("change", this.onChange);
-
-            if (property.kind === "string") {
-                this.input.style.minWidth = "100px";
-            }
-            else if (property.kind === "number") {
-                this.input.style.minWidth = "45px";
-            }
-        }
-
-        handleCopyButton(button, this.getInput());
-        parent.appendChild(this.node);
+        return {
+            x: stageX - STAGE_WIDTH / 2,
+            y: STAGE_HEIGHT / 2 - stageY
+        };
     }
 
-    private buildOptions(options: Option[]) {
-        let select: HTMLSelectElement
-        if (this.select) {
-            this.select.replaceChildren();
-            select = this.select;
-        } else {
-            select = document.createElement("select");
-        }
-
-        for (const option of options) {
-            const selection = document.createElement("option");
-
-            selection.value = String(option.value);
-            selection.textContent = option.name;
-
-            select.appendChild(selection);
-        }
-
-        this.select = select;
-        this.select.className = "text";
-        this.propertyValueNode.appendChild(select);
-        this.select.addEventListener("change", this.onChange);
-        this.select.style.minWidth = "120px";
-
-        return select
-    }
-
-    private costumeOptions(sprite: Sprite) {
-        const options: Option[] = [];
-        sprite.getCostumeMap().forEach(
-            (_: number, costumeName: string) => {
-                options.push({
-                    name: costumeName,
-                    value: costumeName
-                })
-            }
-        );
-
-        return options;
-    }
-
-    private getFillInOptions(sprite: Sprite, optionName: string): Option[] | null {
-        switch (optionName) {
-            case "costumeName":
-                return this.costumeOptions(sprite);        
-            default:
-                break;
-        }
-        return null;
-    }
-
-    public getInput() {
-        if (this.select) {
-            return this.select;
-        }
-
-        if (this.input) {
-            return this.input;
-        }
-
-        throw new Error("this doesn't have any inputs...");
-    }
-
-    private onChange = (_: Event) => {
-        if (!this.selectedSprite) {
-            return;
-        }
-        
-        const input = this.getInput();
-        const oldValue = String(this.selectedSprite[this.property.property]);
-
-        if (this.readonly) {
-            input.value = oldValue;
+    private onMouseMove = (event: PointerEvent) => {
+        if (!this.dragging) {
             return;
         }
 
-        let value: number | string;
-        if (this.property.kind === "number") {
-            value = Number(input.value);
-            if (Number.isNaN(value)) {
-                return;
-            }
-            this.selectedSprite[this.property.property] = value; 
-        }
-        else {
-            value = input.value;
-            this.selectedSprite[this.property.property] = value; 
-        }
+        const pointer = this.pointerToScratch(event);
+        // this._x = pointer.x;
+        // this._y = pointer.y;
 
-        if (this.property.property === "name") {
-            vscode.postMessage({
-                type: "renameSprite",
-                oldName: oldValue,
-                newName: String(value)
-            });
-        }
+        this._x = pointer.x - this.offsetX;
+        this._y = pointer.y - this.offsetY;        
 
-        codeSpaceViewer.setValue(this.property.property, value);
+        this.updatePosition();
     };
 
-    public selectSprite(sprite: Sprite) {
-        this.selectedSprite = sprite;
-        this.update();
+    private onMouseDown = (event: PointerEvent) => {
+        this.dragging = true;
+        const pointer = this.pointerToScratch(event);
 
-        // we do this work outside of update because we don't want to refresh the list every time.
-        const options = this.getFillInOptions(sprite, this.property.property)
-        if (!options) { return; }
-        this.buildOptions(options);
-    }
+        this.sprite.setPointerCapture(event.pointerId);
 
-    public clear() {
-        this.selectedSprite = undefined;
-    }
+        // Remember where inside the sprite the user clicked.
+        this.offsetX = pointer.x - this._x;
+        this.offsetY = pointer.y - this._y;
 
-    public update() {
-        if (!this.selectedSprite) {
+        bringToFront(this);
+    };
+
+    private onMouseUp = (event: PointerEvent) => {
+        if (!this.dragging) {
             return;
         }
 
-        const value =
-            this.selectedSprite[this.property.property];
+        this.dragging = false;
 
-        this.propertyNameNode.textContent = this.property.label;
-        this.getInput().value = String(value);
-        codeSpaceViewer.setValue(this.property.property, value);
-    }
+        const pointer = this.pointerToScratch(event);
+
+        // Preserve the original click offset.
+        this._x = pointer.x - this.offsetX;
+        this._y = pointer.y - this.offsetY;
+
+        this.offsetX = 0;
+        this.offsetY = 0;
+
+        this.updatePosition();
+        updateViewers(this);
+    };
 }
 
-
+// Generating HTML for sprite properties
 const properties: PropertyDefinition[] = [
     { property: "x", label: "X", kind: "number", readonly: false},
     { property: "y", label: "Y", kind: "number", readonly: false},
@@ -409,33 +133,33 @@ const properties: PropertyDefinition[] = [
     }
 ];
 
-const viewers: PropertyViewer[] = [];
+const codespaceViewer = new CodeSpaceViewer()
 
-const nameViewer = new PropertyViewer(spriteProperties, propertyTemplate, {property: "name", label: "Name", kind: "string", readonly: false});
-viewers.push(nameViewer);
+const viewers: PropertyViewer[] = [
+    new PropertyViewer(
+        spriteProperties, 
+        propertyTemplate, 
+        {property: "name", label: "Name", kind: "string", readonly: false},
+        codespaceViewer
+    )
+];
 
-const codeButton = cloneButton();
+const codeButton = cloneCopyButton();
 codeButton.title = "Copy code";
 
-handleCopyButton(codeButton, { get value() {return codeSpace.textContent;} });
-spritePropertiesCode.appendChild(codeButton);
+handleCopyButton(codeButton, { get value() {return codeTextHTML.textContent;} });
+codeSpaceHTML.appendChild(codeButton);
 
 properties.forEach(property => {
-    viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property));
+    viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property, codespaceViewer));
 });
 
 
-function updateViewers(sprite: Sprite) {
-    viewers.forEach(viewer => {
-        viewer.selectSprite(sprite);
-    });
-}
+// interfacing with the extension
 
-
-const sprites: Map<string, Sprite> = new Map<string, Sprite>();
+const sprites: Map<string, Sprite | Backdrop> = new Map<string, Sprite>();
 const spriteOrder: string[] = [];
 
-let stageScale = 1;
 
 function resizeStage() {
     const parent = stagePane;
@@ -444,7 +168,7 @@ function resizeStage() {
         return;
     }
 
-    stageScale = Math.min(
+    let stageScale = Math.min(
         parent.clientWidth / STAGE_WIDTH,
         parent.clientHeight / STAGE_HEIGHT
     );
@@ -469,7 +193,7 @@ function bringToFront(sprite: Sprite) {
     }
 
     spriteOrder.push(name);
-    // sprite.setLayer(spriteOrder.length);
+    sprite.setLayer(spriteOrder.length);
 
     updateLayers();
 }
@@ -488,348 +212,8 @@ function updateLayers() {
 }
 
 
-class Sprite {
-    private _size = 100;
-    // Scratch coordinates
-
-    private _layer = 0;
-    private _rotation = 90;
-    private _rotationStyle = "all around";
-    private _costumeNumber = 0;
-
-    name: string;
-
-    costumes: CostumeData[];
-    private costume: HTMLImageElement; // the actual image element that gets updated
-    private costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
-
-    private sprite: HTMLDivElement;
-    private stage: HTMLElement;
-
-    private dragging = false;
-
-    private offsetX = 0;
-    private offsetY = 0;
-
-    private trueX = 0;
-    private trueY = 0;
-
-    public getCostumeMap() {
-        return this.costumeMap;
-    }
-
-    public getLayer() {
-        return this._layer;
-    }
-
-    public setLayer(value: number) {
-        this._layer = value;
-    }
-
-    public get costumeNumber() {
-        return this._costumeNumber;
-    }
-
-    public set costumeNumber(value: number) {
-        // costume switcher updates _costumeNumber internally
-        this.switchCostumeTo(value);
-    }
-
-    public get costumeName() {
-        return this.getCostume(this._costumeNumber)!.name;
-    }
-
-    public set costumeName(value: string) {
-        const costumeIndex = this.costumeMap.get(value);
-        if (costumeIndex === undefined) {
-            return;
-        }
-
-        this.switchCostumeTo(costumeIndex!);
-    }
-
-    public get size() {
-        return this._size * 100;
-    }
-
-    public set size(value: number) {
-        // clamp
-
-        this._size = value / 100;
-        this.setSize(this._size);
-    }
-
-    public get x() {
-        return Math.round(this.trueX);
-    }
-
-    public set x(value: number) {
-        this.trueX = value;
-        this.updatePosition();
-    }
-
-    public get y() {
-        return Math.round(this.trueY);
-    }
-
-    public set y(value: number) {
-        this.trueY = value;
-        this.updatePosition();
-    }
-
-    public get layer() {
-        return this._layer;
-    }
-
-    public get rotation() {
-        return this._rotation + 90;
-    }
-
-    public set rotation(value: number) {
-        this.setRotation(value - 90);
-    }
-
-    public get rotationStyle() {
-        return this._rotationStyle;
-    }
-
-    public set rotationStyle(value: string) {
-        this._rotationStyle = value;
-        this.setRotation(this._rotation);
-    }
-
-    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        this.name = name;
-        this.costumes = costumes;
-        this.stage = stage;
-
-        this.sprite = document.createElement("div");
-        this.sprite.dataset.spriteId = name;
-
-        this.costumeMap = new Map();
-
-        if (name.toLowerCase() !== "stage") {
-            this.sprite.className = "sprite";
-            this.sprite.addEventListener("pointerdown", this.onMouseDown);
-            this.sprite.addEventListener("pointerup", this.onMouseUp);
-            this.sprite.addEventListener("pointermove", this.onMouseMove);
-        }
-        else {
-            this.sprite.className = "backdrop";
-            this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
-        }
-
-        let index = 0;
-        for (const costume of costumes) {
-            this.costumeMap.set(costume.name, index);
-            index += 1
-        }
-
-        const image = document.createElement("img");
-        image.draggable = false;
-        this.costume = image;
-        this.sprite.replaceChildren(image);
-
-        // Actually add the sprite to the HTML stage
-        this.stage.appendChild(this.sprite);
-
-        if (this.costumes.length > 0) {
-            this.switchCostumeTo(0);
-        }
-
-        this.updatePosition();
-    }
-
-    public getSprite() {
-        return this.sprite;
-    }
-
-    private getCostume(index: number) {
-        if (index < 0 || index >= this.costumes.length) {
-            return;
-        }
-        return this.costumes[index];
-    }
-
-    public switchCostumeTo(index: number) {
-        // expects indexing from 0
-        const image = this.costumes[index];
-
-        if (!image) {
-            return;
-        }
-
-        this._costumeNumber = index;
-        this.costume.src = image.fsPath;
-    }
-
-    public setSize(size: number) {
-        // this expects a number where 0 = 0% and 1 = 100%.
-        this._size = size;
-        const image = this.costume;
-        const minScale = Math.max(
-            5 / image.naturalWidth,
-            5 / image.naturalHeight
-        );
-
-        const scale = Math.max(size, minScale);
-
-        image.style.scale = String(scale);
-    }
-
-    private pointsLeft(direction: number) {
-        direction = ((direction + 180) % 360 + 360) % 360 - 180;
-
-        return direction < 0;
-    }
-
-    public setRotation(degrees: number) {
-        // this expects rotational values starting from 0
-        const image = this.costume;
-
-        this._rotation = degrees;
-
-        switch (this._rotationStyle) {
-            case "left-right":
-                image.style.transform =
-                    this.pointsLeft(this._rotation)
-                        ? "scaleX(-1)"
-                        : "scaleX(1)";
-                break;
-            case "all around":
-                image.style.transform = `rotate(${this._rotation}deg)`;
-                break;
-            case "don't rotate":
-                image.style.transform = `rotate(0deg)`;
-                break;
-            default:
-                break;
-        }
-    }
-
-    public updatePosition() {
-        // Always use the logical 480x360 coordinate system.
-        // CSS scaling handles how large the stage appears on screen.
-        let x = Math.round(this.trueX);
-        let y = Math.round(this.trueY);
-
-        x = clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
-        y = clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
-
-        this.sprite.style.left =
-            `${STAGE_WIDTH / 2 + x}px`;
-
-        this.sprite.style.top =
-            `${STAGE_HEIGHT / 2 - y}px`;
-    }
-
-    public remove() {
-        if (selectedSprite && selectedSprite.name === this.name) {
-            selectedSprite = undefined;
-        }
-        this.sprite.remove();
-    }
-
-    private pointerToScratch(event: PointerEvent) {
-        const stageRect = this.stage.getBoundingClientRect();
-
-        const scaleX = stageRect.width / STAGE_WIDTH;
-        const scaleY = stageRect.height / STAGE_HEIGHT;
-
-        const stageX =
-            (event.clientX - stageRect.left) / scaleX;
-
-        const stageY =
-            (event.clientY - stageRect.top) / scaleY;
-
-        return {
-            x: stageX - STAGE_WIDTH / 2,
-            y: STAGE_HEIGHT / 2 - stageY
-        };
-    }
-
-    private onMouseMove = (event: PointerEvent) => {
-        if (!this.dragging) {
-            return;
-        }
-
-        const pointer = this.pointerToScratch(event);
-        // this._x = pointer.x;
-        // this._y = pointer.y;
-
-        this.trueX = pointer.x - this.offsetX;
-        this.trueY = pointer.y - this.offsetY;        
-
-        this.updatePosition();
-    };
-
-    private onMouseDown = (event: PointerEvent) => {
-        this.dragging = true;
-        const pointer = this.pointerToScratch(event);
-        // this._x = pointer.x;
-        // this._y = pointer.y;
-
-        this.sprite.setPointerCapture(event.pointerId);
-
-        // Remember where inside the sprite the user clicked.
-        this.offsetX = pointer.x - this.trueX;
-        this.offsetY = pointer.y - this.trueY;
-
-        selectedSprite = this;
-
-        bringToFront(this);
-    };
-
-    private onMouseUp = (event: PointerEvent) => {
-        if (!this.dragging) {
-            return;
-        }
-
-        this.dragging = false;
-
-        const pointer = this.pointerToScratch(event);
-        // this._x = pointer.x;
-        // this._y = pointer.y;
-
-        // Preserve the original click offset.
-        this.trueX = pointer.x - this.offsetX;
-        this.trueY = pointer.y - this.offsetY;
-
-        this.offsetX = 0;
-        this.offsetY = 0;
-
-        this.updatePosition();
-        updateViewers(this);
-    };
-
-    public toJSON(): SpriteState {
-        return {
-            name: this.name,
-            size: this.size,
-            x: this.x,
-            y: this.y,
-            layer: this.layer,
-            costumeNumber: this.costumeNumber,
-            rotation: this.rotation,
-            rotationStyle: this.rotationStyle
-        };
-    }
-
-    public fromJSON(state: SpriteState) {
-        this.x = state.x;
-        this.y = state.y;
-        this.name = state.name;
-        this._layer = state.layer;
-        this.rotation = state.rotation;
-        this.size = state.size;
-        this.rotationStyle = state.rotationStyle;
-        this.costumeNumber = state.costumeNumber;
-    }
-}
-
-
 function exportSpriteData() {
-    const spriteData: SpriteState[] = [];
+    const spriteData: ObjectState[] = [];
     sprites.forEach(sprite => {
         spriteData.push(sprite.toJSON());
     });
@@ -858,14 +242,17 @@ function showNoProject() {
 }
 
 
-function addSprite(spriteData: SpriteData, withData?: SpriteState) {
+function addSprite(spriteData: SpriteData, withData?: ObjectState) {
     removeSprite(spriteData.name);
 
-    const sprite = new Sprite(
-        spriteData.name,
-        stage,
-        spriteData.costumes
-    );
+    let sprite: Sprite | Backdrop;
+    const isStage = spriteData.name.toLowerCase() === "stage"
+
+    if (isStage) {
+        sprite = new Backdrop(spriteData.name, stagePane, spriteData.costumes);
+    } else {
+        sprite = new Sprite(spriteData.name, stagePane, spriteData.costumes);
+    }
 
     if (withData) {
         sprite.fromJSON(withData);
@@ -873,7 +260,7 @@ function addSprite(spriteData: SpriteData, withData?: SpriteState) {
 
     sprites.set(spriteData.name, sprite);
 
-    if (spriteData.name.toLowerCase() !== "stage") {
+    if (!isStage) {
         spriteOrder.push(spriteData.name);
         spriteOrder.sort((a, b) => {
             const layer1 = sprites.get(a)!.getLayer();

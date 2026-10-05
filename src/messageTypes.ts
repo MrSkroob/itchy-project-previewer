@@ -7,17 +7,17 @@ export interface CostumeData {
 export interface SpriteData {
     name: string;
     costumes: CostumeData[];
-    data?: SpriteState;
+    data?: ObjectState;
 }
 
 
-export interface SpriteState {
+export interface ObjectState {
     name: string;
+    costumeNumber: number;
     size: number;
     x: number;
     y: number;
     layer: number;
-    costumeNumber: number;
     rotation: number;
     rotationStyle: string;
 }
@@ -26,5 +26,5 @@ export interface SpriteState {
 export interface Message {
     type: string;
     sprite?: SpriteData | null;
-    stageState?: SpriteState[];
+    stageState?: ObjectState[];
 }

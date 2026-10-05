@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 // import * as commands from "./commands";
 import Stage from "./previewer";
 import { watchSprites } from "./watcher";
-import { SpriteState } from './messageTypes';
+import { ObjectState } from './messageTypes';
 
 
 let stage: Stage | null = null;
@@ -46,7 +46,7 @@ function getProjectPath() {
 }
 
 
-async function updateStage(stage: Stage, projectPath: vscode.Uri, data?: {[k: string]: SpriteState}) {
+async function updateStage(stage: Stage, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
 	stage.removeAllSprites();
 
 	if (!watcher) {
@@ -96,7 +96,7 @@ async function openPreviewer(context: vscode.ExtensionContext) {
 		stage.showNoProject();
 	} else {
 
-		let data: {[k: string]: SpriteState} = {};
+		let data: {[k: string]: ObjectState} = {};
 		try {
 			const file = vscode.Uri.joinPath(projectPath, "project-previewer.json");
 			const stringData = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
