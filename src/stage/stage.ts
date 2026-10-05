@@ -130,12 +130,16 @@ class CodeSpaceViewer {
                 break;
             case "x":
                 this.x = value;
+                break;
             case "y":
                 this.y = value;
-            case "rotation":
-                this.rotation = value;
+                break;
             case "rotationStyle":
                 this.rotationStyle = value;
+                break;
+            case "rotation":
+                this.rotation = value;
+                break;
             default:
                 break;
         }
@@ -597,6 +601,12 @@ class Sprite {
         image.style.scale = String(scale);
     }
 
+    private pointsLeft(direction: number) {
+        direction = ((direction + 180) % 360 + 360) % 360 - 180;
+
+        return direction < 0;
+    }
+
     public setRotation(degrees: number) {
         // this expects rotational values starting from 0
         const image = this.getCostume(this._costumeNumber);
@@ -610,23 +620,21 @@ class Sprite {
 
         switch (this._rotationStyle) {
             case "left-right":
-                if ((degrees + 90) > 180) {
-                    rotation = 90;
-                }
-                else {
-                    rotation = 0;
-                }
+                image.style.transform =
+                    this.pointsLeft(this._rotation)
+                        ? "scaleX(-1)"
+                        : "scaleX(1)";
                 break;
             case "all around":
+                image.style.transform = `rotate(${rotation}deg)`;
                 break;
             case "don't rotate":
                 rotation = 0;
+                image.style.transform = `rotate(0deg)`;
                 break;
             default:
                 break;
         }
-
-        image.style.transform = `rotate(${rotation}deg)`;
     }
 
     public updatePosition() {
