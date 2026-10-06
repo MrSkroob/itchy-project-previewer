@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+
+    <link
+        rel="stylesheet"
+        href="{{CSS_URI}}"
+    >
+</head>
+
+<body>
+    <div id="editor">
+        <div id="stage-pane" class="editor-group">
+            <div id="stage-container">
+                <!-- this is filled in by stage.ts -->
+            </div>
+        </div>
+
+        <template id="copy-button-template">
+            <button
+                    class="copy-button"
+                    type="button"
+                    aria-label="Copy value"
+                >
+                    <svg viewBox="0 0 16 16" width="16" height="16">
+                        <path
+                            fill="currentColor"
+                            d="M4 4V1h11v11h-3v3H1V4h3zm1 0h7v7h2V2H5v2zm6 1H2v9h9V5z"
+                        />
+                    </svg>
+                </button>
+        </template>
+        
+        <template id="property-input-template">
+            <label class="property">
+                <span class="property-name"></span>
+                <span class="property-input">
+
+                </span>
+            </label>
+        </template>
+
+        <div id="property-editor">
+            <div id="sprite-properties" class="editor-group">
+                <!-- this is filled in by stage.ts -->
+            </div>
+
+            <div id="code-template" class="editor-group">
+                <span id="text-contents" class="text">
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{JS_URI}}"></script>
+</body>
+</html>
