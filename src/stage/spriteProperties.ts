@@ -1,5 +1,5 @@
-import { BaseSprite } from "./vm/objects";
-// import { Message, SpriteData, ObjectState, CostumeData } from "../messageTypes";
+import { BaseBackdrop, BaseSprite, BaseInstance } from "./vm/objects";
+import { hasProperty } from "./common/ownershipUtils";
 
 export const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
 // const copyButtonTemplate = document.getElementById("copy-button-template") as HTMLTemplateElement;
@@ -61,6 +61,7 @@ export class CodeSpaceViewer {
     rotation: number = 90;
     rotationStyle: string = "all around";
     costumeName: string = "";
+    visible: boolean = true;
 
     public setValue(propertyName: string, value: any) {
         switch (propertyName) {
@@ -82,6 +83,9 @@ export class CodeSpaceViewer {
             case "costumeName":
                 this.costumeName = value;
                 break;
+            case "visible":
+                this.visible = value;
+                break;
             default:
                 break;
         }
@@ -89,33 +93,39 @@ export class CodeSpaceViewer {
     }
 
     public getCode() {
+        let codeBlock = `    motion_pointindirection(${this.rotation});
+    motion_gotoxy(${this.x}, ${this.y});
+    looks_setsizeto(${this.size});
+    motion_setrotationstyle("${this.rotationStyle}");`;
+
         if (this.costumeName) {
-            return `event event_whenflagclicked() {
-    motion_pointindirection(${this.rotation});
-    motion_gotoxy(${this.x}, ${this.y});
-    looks_setsizeto(${this.size});
-    looks_switchcostumeto("${this.costumeName}");
-    motion_setrotationstyle("${this.rotationStyle}");
-}`;
-        } else {
-            return `event event_whenflagclicked() {
-    motion_pointindirection(${this.rotation});
-    motion_gotoxy(${this.x}, ${this.y});
-    looks_setsizeto(${this.size});
-    motion_setrotationstyle("${this.rotationStyle}");
-}`;
+            codeBlock += `\n    looks_switchcostumeto("${this.costumeName}");`;
         }
 
+        if (this.visible) {
+            codeBlock += "\n    looks_show();";
+        } else {
+            codeBlock += "\n    looks_hide();";
+        }
+
+        // if this.vi
+
+        const event = `event event_whenflagclicked() {
+${codeBlock}
+}`;
+
+        return event;
     }
 }
 
+type BooleanProperty = "visible"
 
 type NumberProperty = 
     | "x"
     | "y"
     | "size"
     | "rotation"
-    | "costumeNumber";
+    | "costumeNumber"
     // | "rotationStyle"
 
 
@@ -136,6 +146,7 @@ export type PropertyDefinition =
         kind: "number";
         property: NumberProperty;
         label: string;
+        global?: boolean; // means that this should persist between sprites. for example, the list of sprites shouldn't change if you've moved one.
         readonly: boolean
     }
     | {
@@ -143,12 +154,20 @@ export type PropertyDefinition =
         kind: "string";
         property: StringProperty;
         label: string;
+        global?: boolean;
+        readonly: boolean;
+    }
+    | {
+        property: BooleanProperty;
+        kind: "boolean";
+        label: string;
+        global?: boolean;
         readonly: boolean
     };
 
 
 export class PropertyViewer {
-    private selectedSprite: BaseSprite | undefined;
+    private selectedSprite: BaseInstance | undefined;
 
     private node: HTMLElement;
     private property: PropertyDefinition;
@@ -161,13 +180,21 @@ export class PropertyViewer {
 
     private readonly: boolean;
     private codeSpaceViewer: CodeSpaceViewer;
+    private sprites: Map<string, BaseInstance>;
+
+    // external method to be called which updates all property viewers.
+    private selector: (instance: BaseInstance) => void;
 
     constructor(
         parent: HTMLElement,
         template: HTMLTemplateElement,
         property: PropertyDefinition,
-        codeSpaceViewer: CodeSpaceViewer
+        sprites: Map<string, BaseInstance>,
+        codeSpaceViewer: CodeSpaceViewer,
+        selector: (instance: BaseInstance) => void
     ) {
+        this.selector = selector;
+        this.sprites = sprites;
         this.codeSpaceViewer = codeSpaceViewer;
         this.property = property;
         this.readonly = property.readonly;
@@ -199,7 +226,13 @@ export class PropertyViewer {
 
         this.propertyNameNode.textContent = property.label;
 
-        if (property.options) {
+        if (property.kind === "boolean") {
+            const input = document.createElement("input");
+            this.input = input;
+            this.input.type = "checkbox";
+            this.propertyValueNode.append(input);
+            this.propertyValueNode.addEventListener("change", this.onChange);
+        } else if (property.options) {
             this.propertyValueNode.appendChild(this.buildOptions(property.options));
         } else {
             const input = document.createElement("input");
@@ -217,12 +250,13 @@ export class PropertyViewer {
             }
         }
 
-        handleCopyButton(button, this.getInput());
+        handleCopyButton(button, {value: String(this.getInputValue())});
         parent.appendChild(this.node);
     }
 
     private buildOptions(options: Option[]) {
         let select: HTMLSelectElement;
+        let isExisting = this.select !== undefined;
         if (this.select) {
             this.select.replaceChildren();
             select = this.select;
@@ -241,14 +275,16 @@ export class PropertyViewer {
 
         this.select = select;
         this.select.className = "text";
-        this.propertyValueNode.appendChild(select);
+        if (!isExisting) {
+            this.propertyValueNode.appendChild(select);  
+        }
         this.select.addEventListener("change", this.onChange);
         this.select.style.minWidth = "120px";
 
         return select;
     }
 
-    private costumeOptions(sprite: BaseSprite) {
+    private costumeOptions(sprite: BaseInstance) {
         const options: Option[] = [];
         sprite.getCostumeMap().forEach(
             (_: number, costumeName: string) => {
@@ -262,10 +298,30 @@ export class PropertyViewer {
         return options;
     }
 
-    private getFillInOptions(sprite: BaseSprite, optionName: string): Option[] | null {
+    private spriteNames(sprites: Map<string, BaseInstance>) {
+        const options: Option[] = [];
+        sprites.forEach(
+            (_: BaseInstance, key: string) => {
+                options.push(
+                    {
+                        name: key,
+                        value: key
+                    }
+                );
+            }
+        );
+        return options;
+    }
+
+    private getFillInOptions(optionName: string, sprite?: BaseInstance): Option[] | null {
         switch (optionName) {
             case "costumeName":
-                return this.costumeOptions(sprite);        
+                if (!sprite) {
+                    break;
+                }
+                return this.costumeOptions(sprite);    
+            case "name":
+                return this.spriteNames(this.sprites);
             default:
                 break;
         }
@@ -284,51 +340,90 @@ export class PropertyViewer {
         throw new Error("this doesn't have any inputs...");
     }
 
+    public getInputValue() {
+        const inputHTML = this.getInput();
+
+        if (inputHTML.type === "checkbox") {
+            return inputHTML.checked;
+        } else {
+            return inputHTML.value;
+        }
+    }
+
+    public setInputValue(value: any) {
+        const inputHTML = this.getInput();
+
+        if (inputHTML.type === "checkbox") {
+            inputHTML.checked = Boolean(value);
+        } else {
+            inputHTML.value = String(value);
+        }
+    }
+
     private onChange = (_: Event) => {
         if (!this.selectedSprite) {
             return;
         }
         
-        const input = this.getInput();
-        const oldValue = String(this.selectedSprite[this.property.property]);
+        const input = this.getInputValue();
 
-        if (this.readonly) {
-            input.value = oldValue;
+        // technically we don't need this as the entry would be disabled, so onChange never gets fired.
+        // we have this to shut the compiler up.
+        if (!hasProperty(this.selectedSprite, this.property.property)) {
             return;
         }
 
-        let value: number | string;
+        const oldValue = String(this.selectedSprite[this.property.property]);
+
+        if (this.readonly) {
+            this.setInputValue(oldValue);
+            return;
+        }
+
+        if (this.property.property === "name") {
+            const sprite = this.sprites.get(String(input));
+            if (!sprite) { return; }
+            this.selectSprite(sprite, false);
+            this.selector(sprite);
+            return;
+        }
+
+        let value: number | string | boolean;
         if (this.property.kind === "number") {
-            value = Number(input.value);
+            value = Number(input);
             if (Number.isNaN(value)) {
                 return;
             }
             this.selectedSprite[this.property.property] = value; 
         }
-        else {
-            value = input.value;
-            this.selectedSprite[this.property.property] = value; 
+        else if (this.property.kind === "boolean") {
+            value = Boolean(input);
+            this.selectedSprite[this.property.property] = value;
         }
-
-        if (this.property.property === "name") {
-            vscode.postMessage({
-                type: "renameSprite",
-                oldName: oldValue,
-                newName: String(value)
-            });
+        else {
+            value = String(input);
+            this.selectedSprite[this.property.property] = value; 
         }
 
         this.codeSpaceViewer.setValue(this.property.property, value);
     };
 
-    public selectSprite(sprite: BaseSprite) {
-        this.selectedSprite = sprite;
-        this.update();
+    public rebuild(refreshGlobals?: boolean) {
+        if (refreshGlobals || !this.property.global) {
+            const options = this.getFillInOptions(this.property.property, this.selectedSprite);
+            if (options) {
+                this.buildOptions(options);
+            }
+        }
 
-        // we do this work outside of update because we don't want to refresh the list every time.
-        const options = this.getFillInOptions(sprite, this.property.property);
-        if (!options) { return; }
-        this.buildOptions(options);
+        this.update();
+    }
+
+    public selectSprite(sprite?: BaseInstance, refreshGlobals?: boolean) {
+        this.selectedSprite = sprite;
+        // we need to operate in this order; when drop downs get rebuilt, their values get reset. having
+        // update first means their correct value gets overriden
+        this.rebuild(refreshGlobals);
     }
 
     public clear() {
@@ -340,11 +435,27 @@ export class PropertyViewer {
             return;
         }
 
+        if (!hasProperty(this.selectedSprite, this.property.property)) {
+            this.getInput().disabled = true;
+            return;
+        }
+
+        // console.log("updating:", this.property.property)
+        
+        this.getInput().disabled = false;
+
         const value =
             this.selectedSprite[this.property.property];
+        console.log(value);
 
         this.propertyNameNode.textContent = this.property.label;
-        this.getInput().value = String(value);
+
+        if (typeof(value) === "boolean") {
+            (this.getInput() as HTMLInputElement).checked = value;
+        } else {
+            this.getInput().value = String(value);
+        }
+
         this.codeSpaceViewer.setValue(this.property.property, value);
     }
 }

@@ -45,52 +45,67 @@ body {
     min-width: 0;
 }
 
+
 #stage-pane {
+    flex: 3 1 0;
+
+    min-width: 0;
     min-height: 0;
 
     display: flex;
-    align-items: start;
+    align-items: center;
     justify-content: center;
 
     overflow: hidden;
+
+    container-type: size;
 }
 
 #stage-container {
     position: relative;
 
     width: 480px;
-    height: 360px;
+    height: 320px;
 
-    flex-shrink: 0;
-    transform: scale(2);
-    transform-origin: center center;
+    flex: 0 0 auto;
 
-    /* gap: 12px; */
+    transform-origin: center;
+    scale: min(
+        calc(100cqw / 480px),
+        calc(100cqh / 320px)
+    );
 }
 
-.sprite, img {
-    min-width: 10px;
-    min-height: 10px;
+/* The backdrop fills the stage. */
+.backdrop {
+    position: absolute;
+    inset: 0;
 }
 
+.backdrop img {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+}
+
+/* Sprite coordinates refer to the sprite's centre. */
 .sprite {
     position: absolute;
-    /* object-fit: contain; */
-
-    /*
-     * left/top refer to the centre of the sprite.
-     */
     transform: translate(-50%, -50%);
 }
 
 .sprite img {
     display: block;
+
     max-width: none;
     max-height: none;
 }
 
+
 /* container of all the editable values of a sprite */
 #sprite-properties {
+    flex: 2 1 0;
     overflow-y: auto;
     justify-content: space-between;
 
@@ -149,11 +164,11 @@ body {
     field-sizing: content;
 }
 
-select:read-only,
-input:read-only {
+select:disabled,
+input:disabled {
     cursor: not-allowed;
     background: var(--vscode-editor-background);
-    color: var(--vscode-disabledForeground);
+    color: var(--vscode-disabledForeground) !important;
 }
 
 .copy-button {
@@ -183,7 +198,7 @@ input:read-only {
 #code-template {
     order: 1;
     flex: 0 1;
-    font-family: var(--vscode-);
+    /* font-family: var(--vscode-); */
     border-radius: 0;
 }
 

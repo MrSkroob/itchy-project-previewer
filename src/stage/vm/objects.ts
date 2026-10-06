@@ -1,16 +1,18 @@
 import { CostumeData, ObjectState } from "../../messageTypes";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
-import * as maths from "../common/mathUtils";
+import * as maths from "../common/mathsUtils";
 
 
 const BACKDROP_Z_INDEX = 0;
 
 
-class BaseInstance {
+export class BaseInstance {
     // Scratch coordinates
+    public variables: Map<String, unknown> = new Map();
+    public lists: Map<String, unknown[]> = new Map();
     protected _costumeNumber = 0;
 
-    name: string;
+    protected _name: string;
 
     costumes: CostumeData[];
     protected costume: HTMLImageElement; // the actual image element that gets updated
@@ -18,6 +20,10 @@ class BaseInstance {
 
     protected sprite: HTMLDivElement;
     protected stage: HTMLElement;
+
+    public get name() {
+        return this._name;
+    }
 
     public getCostumeMap() {
         return this.costumeMap;
@@ -46,7 +52,7 @@ class BaseInstance {
     }
 
     constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        this.name = name;
+        this._name = name;
         this.costumes = costumes;
         this.stage = stage;
 
@@ -106,16 +112,16 @@ class BaseInstance {
 }
 
 
-export class Backdrop extends BaseInstance {
-    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        super(name, stage, costumes);
+export class BaseBackdrop extends BaseInstance {
+    constructor(stage: HTMLElement, costumes: CostumeData[]) {
+        super("stage", stage, costumes);
         this.sprite.className = "backdrop";
         this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
-        this.sprite.style.left =
-            `${STAGE_WIDTH / 2}px`;
+        // this.sprite.style.left =
+        //     `${STAGE_WIDTH / 2}px`;
 
-        this.sprite.style.top =
-            `${STAGE_HEIGHT / 2}px`;
+        // this.sprite.style.top =
+        //     `${STAGE_HEIGHT / 2}px`;
     }
 
     public setLayer() {
@@ -129,6 +135,7 @@ export class Backdrop extends BaseInstance {
     public toJSON(): ObjectState {
         return {
             name: this.name,
+            visible: true,
             size: 100,
             x: 0,
             y: 0,
@@ -140,7 +147,7 @@ export class Backdrop extends BaseInstance {
     }
 
     public fromJSON(state: ObjectState) {
-        this.name = state.name;
+        this._name = state.name;
         this.costumeNumber = state.costumeNumber;
     }
 }
@@ -156,6 +163,8 @@ export class BaseSprite extends BaseInstance {
     protected _x = 0;
     protected _y = 0;
 
+    protected _visible = true;
+
     public getLayer() {
         return this._layer;
     }
@@ -163,6 +172,15 @@ export class BaseSprite extends BaseInstance {
     public setLayer(value: number) {
         // careful: this doesn't update the sprite's layer during runtime.
         this._layer = value;
+    }
+
+    public get visible() {
+        return this._visible;
+    }
+
+    public set visible(value: boolean) {
+        this._visible = value;
+        this.setVisible(value);
     }
 
     public get size() {
@@ -215,6 +233,7 @@ export class BaseSprite extends BaseInstance {
 
     constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
         super(name, stage, costumes);
+        this.sprite.className = "sprite";
         this.updatePosition();
     }
 
@@ -222,8 +241,12 @@ export class BaseSprite extends BaseInstance {
         return this.sprite;
     }
 
+    public setVisible(visible: boolean) {
+        this._visible = visible;
+        this.sprite.hidden = !visible;
+    }
+
     public setSize(size: number) {
-        // this expects a number where 0 = 0% and 1 = 100%.
         this._size = size;
         const image = this.costume;
         const minScale = Math.max(
@@ -243,10 +266,9 @@ export class BaseSprite extends BaseInstance {
     }
 
     public setRotation(degrees: number) {
-        // this expects rotational values starting from 0
         const image = this.costume;
 
-        this._rotation = degrees;
+        this._rotation = degrees % 360;
 
         switch (this._rotationStyle) {
             case "left-right":
@@ -272,14 +294,21 @@ export class BaseSprite extends BaseInstance {
         let x = Math.round(this._x);
         let y = Math.round(this._y);
 
-        x = maths.clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
-        y = maths.clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
+        // const left = (x + (STAGE_WIDTH / 2)) / (STAGE_WIDTH * 100);
+        // const top = ((STAGE_HEIGHT / 2) - y) / (STAGE_HEIGHT * 100);
+        // // this._x = maths.clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
+        // // this._y = maths.clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
 
+        // this.sprite.style.left =
+        //     `${left * 100}%`;
+
+        // this.sprite.style.top =
+        //     `${top * 100}%`;
         this.sprite.style.left =
-            `${STAGE_WIDTH / 2 + x}px`;
+        `${((x + STAGE_WIDTH / 2) / STAGE_WIDTH) * 100}%`;
 
         this.sprite.style.top =
-            `${STAGE_HEIGHT / 2 - y}px`;
+            `${((STAGE_HEIGHT / 2 - y) / STAGE_HEIGHT) * 100}%`;
     }
 
     public remove() {
@@ -293,6 +322,7 @@ export class BaseSprite extends BaseInstance {
         return {
             name: this.name,
             size: this.size,
+            visible: this.visible,
             x: this.x,
             y: this.y,
             layer: this.layer,
@@ -305,7 +335,7 @@ export class BaseSprite extends BaseInstance {
     public fromJSON(state: ObjectState) {
         this.x = state.x;
         this.y = state.y;
-        this.name = state.name;
+        this._name = state.name;
         this._layer = state.layer;
         this.rotation = state.rotation;
         this.size = state.size;

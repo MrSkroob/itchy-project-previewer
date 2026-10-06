@@ -1,4 +1,9 @@
-import { BaseSprite, Backdrop } from "./objects"
+import { BaseBackdrop, BaseSprite } from "./objects";
+
+export interface ExecutionContext {
+    sprite?: BaseSprite
+    backdrop: BaseBackdrop
+};
 
 
 type YieldInstruction = 
@@ -8,8 +13,14 @@ type YieldInstruction =
     | {type: "broadcastAndWait"; name: string}
 
 
+interface Blockable {
+    context: ExecutionContext;
+    script: Script;
+}
+
+
 type ThreadGenerator = Generator<YieldInstruction, void, unknown>;
-export type Script = () => ThreadGenerator;
+export type Script = (context: ExecutionContext) => ThreadGenerator;
 
 
 class Thread {
@@ -41,7 +52,7 @@ class Thread {
         this.msPerTick = msPerTick;
     }
 
-    public canStep() {{
+    public canStep() {
         if (!this.yieldInstruction) {
             return true;
         }
@@ -56,9 +67,9 @@ class Thread {
             case "broadcastAndWait":
                 return this.childThreads.every(
                     thread => thread.status === "done"
-                )
+                );
         }
-    }}
+    }
 
     public step() {
         if (!this.canStep()) {
@@ -103,15 +114,15 @@ class Thread {
 export class ItchyVM {
     public msPerTick: number;
     private threads: Thread[] = [];
-    private blockables: Map<string, Script[]> = new Map();
+    private blockables: Map<string, Blockable[]> = new Map();
 
     constructor(tickrate: number) {
         this.msPerTick = (1 / tickrate) * 1000; 
     }
 
-    public spawnThread(script: Script) {
+    public spawnThread(script: Script, context: ExecutionContext) {
         const thread = new Thread(
-            script(),
+            script(context),
             this.msPerTick
         );
 
@@ -123,22 +134,22 @@ export class ItchyVM {
     private spawnBlockable(name: string) {
         const scripts = this.blockables.get(name);
 
-        return scripts!.map(script =>
-            this.spawnThread(script)
+        return scripts!.map(blockable =>
+            this.spawnThread(blockable.script, blockable.context)
         );
     }
 
-    public registerBlockable(name: string, script: Script) {
+    public registerBlockable(name: string, script: Script, context: ExecutionContext) {
         // broadcasts are considered 'blockable' as their execution
         // will halt other threads that have 'broadcastAndWait`
         let scripts = this.blockables.get(name);
 
         if (!scripts) {
             scripts = [];
-            this.blockables.set(name, scripts)
+            this.blockables.set(name, scripts);
         }
 
-        scripts.push(script);
+        scripts.push({script: script, context: context});
     }
 
     public step() {
@@ -191,7 +202,7 @@ export class ItchyVM {
             requests.push({
                 thread,
                 yieldReason
-            })
+            });
         }
 
         for (const {thread, yieldReason} of requests) {

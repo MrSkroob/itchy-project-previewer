@@ -1,7 +1,8 @@
 import { Message, SpriteData, ObjectState, CostumeData } from "../messageTypes";
-import { BaseSprite, Backdrop } from "./vm/objects";
+import { BaseSprite, BaseBackdrop, BaseInstance } from "./vm/objects";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
+
 
 const stage = document.getElementById("stage-container")!;
 const stagePane = document.getElementById("stage-pane")!;
@@ -9,10 +10,38 @@ const stagePane = document.getElementById("stage-pane")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
 
 
-function updateViewers(sprite: Sprite) {
+function rebuildViewers() {
+    viewers.forEach(viewer => {
+        viewer.rebuild(true);
+    });
+}
+
+
+function targetViewers(sprite?: BaseInstance) {
     viewers.forEach(viewer => {
         viewer.selectSprite(sprite);
     });
+}
+
+
+function updateViewers() {
+    viewers.forEach(viewer => {
+        viewer.update();
+    });
+}
+
+
+class Backdrop extends BaseBackdrop {
+    constructor(stage: HTMLElement, costumes: CostumeData[]) {
+        super(stage, costumes);
+
+        this.sprite.className = "backdrop";
+        this.sprite.addEventListener("pointerdown", this.onMouseDown);
+    }
+
+    private onMouseDown = (_: PointerEvent) => {
+        targetViewers(this);
+    };
 }
 
 
@@ -25,12 +54,9 @@ class Sprite extends BaseSprite {
     constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
         super(name, stage, costumes);
 
-        if (name.toLowerCase() !== "stage") {
-            this.sprite.className = "sprite";
-            this.sprite.addEventListener("pointerdown", this.onMouseDown);
-            this.sprite.addEventListener("pointerup", this.onMouseUp);
-            this.sprite.addEventListener("pointermove", this.onMouseMove);
-        }
+        this.sprite.addEventListener("pointerdown", this.onMouseDown);
+        this.sprite.addEventListener("pointerup", this.onMouseUp);
+        this.sprite.addEventListener("pointermove", this.onMouseMove);
     }
 
     private pointerToScratch(event: PointerEvent) {
@@ -77,6 +103,7 @@ class Sprite extends BaseSprite {
         this.offsetY = pointer.y - this._y;
 
         bringToFront(this);
+        targetViewers(this);
     };
 
     private onMouseUp = (event: PointerEvent) => {
@@ -96,12 +123,13 @@ class Sprite extends BaseSprite {
         this.offsetY = 0;
 
         this.updatePosition();
-        updateViewers(this);
+        updateViewers();
     };
 }
 
 // Generating HTML for sprite properties
 const properties: PropertyDefinition[] = [
+    { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], readonly: false, global: true},
     { property: "x", label: "X", kind: "number", readonly: false},
     { property: "y", label: "Y", kind: "number", readonly: false},
     { property: "size", label: "Size", kind: "number", readonly: false},
@@ -128,20 +156,15 @@ const properties: PropertyDefinition[] = [
         property: "costumeName",
         label: "Costume Name",
         kind: "string",
-        options: [], // to be filled in
+        options: [], // to be filled in. purposely left blank
+        readonly: false
+    },
+    {
+        property: "visible",
+        label: "Visible",
+        kind: "boolean",
         readonly: false
     }
-];
-
-const codespaceViewer = new CodeSpaceViewer()
-
-const viewers: PropertyViewer[] = [
-    new PropertyViewer(
-        spriteProperties, 
-        propertyTemplate, 
-        {property: "name", label: "Name", kind: "string", readonly: false},
-        codespaceViewer
-    )
 ];
 
 const codeButton = cloneCopyButton();
@@ -150,15 +173,20 @@ codeButton.title = "Copy code";
 handleCopyButton(codeButton, { get value() {return codeTextHTML.textContent;} });
 codeSpaceHTML.appendChild(codeButton);
 
-properties.forEach(property => {
-    viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property, codespaceViewer));
-});
-
 
 // interfacing with the extension
 
-const sprites: Map<string, Sprite | Backdrop> = new Map<string, Sprite>();
+const sprites: Map<string, Sprite | Backdrop> = new Map<string, Sprite | Backdrop>();
 const spriteOrder: string[] = [];
+
+const codespaceViewer = new CodeSpaceViewer();
+
+const viewers: PropertyViewer[] = [];
+
+properties.forEach(property => {
+    viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property, sprites, codespaceViewer, targetViewers));
+});
+
 
 let stageScale = 1;
 
@@ -171,8 +199,9 @@ function resizeStage() {
 
     stageScale = Math.min(
         parent.clientWidth / STAGE_WIDTH,
-        parent.clientHeight / STAGE_HEIGHT
+        parent.clientHeight / STAGE_HEIGHT,
     );
+    
 
     stage.style.width = `${STAGE_WIDTH}px`;
     stage.style.height = `${STAGE_HEIGHT}px`;
@@ -247,10 +276,10 @@ function addSprite(spriteData: SpriteData, withData?: ObjectState) {
     removeSprite(spriteData.name);
 
     let sprite: Sprite | Backdrop;
-    const isStage = spriteData.name.toLowerCase() === "stage"
+    const isStage = spriteData.name.toLowerCase() === "stage";
 
     if (isStage) {
-        sprite = new Backdrop(spriteData.name, stage, spriteData.costumes);
+        sprite = new Backdrop(stage, spriteData.costumes);
     } else {
         sprite = new Sprite(spriteData.name, stage, spriteData.costumes);
     }
@@ -260,6 +289,7 @@ function addSprite(spriteData: SpriteData, withData?: ObjectState) {
     }
 
     sprites.set(spriteData.name, sprite);
+    rebuildViewers();
 
     if (!isStage) {
         spriteOrder.push(spriteData.name);
@@ -294,6 +324,8 @@ function removeSprite(name: string) {
 
     sprite.remove();
     sprites.delete(name);
+    targetViewers();
+    rebuildViewers();
 
     const index = spriteOrder.indexOf(name);
 
@@ -345,7 +377,7 @@ window.addEventListener("message", event => {
 });
 
 
-window.addEventListener("resize", resizeStage);
+// window.addEventListener("resize", resizeStage);
 
-resizeStage();
+// resizeStage();
 

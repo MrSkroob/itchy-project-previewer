@@ -173,7 +173,7 @@ export default class Stage {
         const mediaPath = vscode.Uri.joinPath(
             extensionUri,
             "media"
-        )
+        );
         const htmlPath = vscode.Uri.joinPath(
             mediaPath,
             "stage.html"

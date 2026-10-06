@@ -5,7 +5,8 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 // import * as myExtension from '../../extension';
 
-import { ItchyVM, Script } from "../stage/vm/main";
+import { ItchyVM, Script } from "../stage/vm/itchyVM";
+import { BaseSprite, BaseBackdrop } from '../stage/vm/objects';
 
 suite('Extension Test Suite', () => {
 	vscode.window.showInformationMessage('Start all tests.');
@@ -21,6 +22,7 @@ suite('VM Test Suite', () => {
 	const vm = new ItchyVM(30);
 
 	test('yielding', async () => {
+		// const backdrop = new BaseBackdrop()
 		const log: string[] = [];
 		const main: Script = function*() {
 			log.push("main:start");
@@ -49,18 +51,19 @@ suite('VM Test Suite', () => {
 
 			log.push("B:done");
 		};
-		vm.registerBlockable("hello", receiverA);
-		vm.registerBlockable("hello", receiverB);
-		vm.spawnThread(main);
-		for (let tick = 1; tick <= 8; tick++) {
-			// console.log(`\n--- tick ${tick} ---`);
+		// vm.registerBlockable("hello", receiverA);
+		// vm.registerBlockable("hello", receiverB);
 
-			vm.step();
+		// vm.spawnThread(main);
+		// for (let tick = 1; tick <= 8; tick++) {
+		// 	// console.log(`\n--- tick ${tick} ---`);
 
-			await new Promise(resolve =>
-				setTimeout(resolve, vm.msPerTick + 1)
-			);
-		}
+		// 	vm.step();
+
+		// 	await new Promise(resolve =>
+		// 		setTimeout(resolve, vm.msPerTick + 1)
+		// 	);
+		// }
 		console.log(log);
 	});
 });

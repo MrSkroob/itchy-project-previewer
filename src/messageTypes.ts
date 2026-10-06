@@ -14,6 +14,7 @@ export interface SpriteData {
 export interface ObjectState {
     name: string;
     costumeNumber: number;
+    visible: boolean;
     size: number;
     x: number;
     y: number;
