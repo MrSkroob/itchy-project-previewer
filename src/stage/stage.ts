@@ -1,46 +1,27 @@
 import { Message, SpriteData, ObjectState, CostumeData } from "../messageTypes";
-import { BaseSprite, BaseBackdrop, BaseInstance } from "./vm/objects";
+import { BaseSprite, BaseBackdrop, BaseInstance, Workspace } from "./vm/objects";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
 
 
-const stage = document.getElementById("stage-container")!;
-const stagePane = document.getElementById("stage-pane")!;
-
+const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
 
 
-function rebuildViewers() {
-    viewers.forEach(viewer => {
-        viewer.rebuild(true);
-    });
-}
-
-
-function targetViewers(sprite?: BaseInstance) {
-    viewers.forEach(viewer => {
-        viewer.selectSprite(sprite);
-    });
-}
-
-
-function updateViewers() {
-    viewers.forEach(viewer => {
-        viewer.update();
-    });
-}
-
+type ExecutionMode = "editing" | "running"
 
 class Backdrop extends BaseBackdrop {
-    constructor(stage: HTMLElement, costumes: CostumeData[]) {
-        super(stage, costumes);
+    private parent: Stage;
 
+    constructor(data: SpriteData, stageHTML: HTMLElement, parent: Stage) {
+        super(data, stageHTML);
+        this.parent = parent;
         this.sprite.className = "backdrop";
         this.sprite.addEventListener("pointerdown", this.onMouseDown);
     }
 
     private onMouseDown = (_: PointerEvent) => {
-        targetViewers(this);
+        this.parent.targetViewers(this);
     };
 }
 
@@ -50,17 +31,18 @@ class Sprite extends BaseSprite {
 
     private offsetX = 0;
     private offsetY = 0;
+    private parent: Stage; 
 
-    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        super(name, stage, costumes);
-
+    constructor(data: SpriteData, stage: HTMLElement, parent: Stage) {
+        super(data, stage);
+        this.parent = parent;
         this.sprite.addEventListener("pointerdown", this.onMouseDown);
         this.sprite.addEventListener("pointerup", this.onMouseUp);
         this.sprite.addEventListener("pointermove", this.onMouseMove);
     }
 
     private pointerToScratch(event: PointerEvent) {
-        const stageRect = this.stage.getBoundingClientRect();
+        const stageRect = this.stageHTML.getBoundingClientRect();
 
         const scaleX = stageRect.width / STAGE_WIDTH;
         const scaleY = stageRect.height / STAGE_HEIGHT;
@@ -102,8 +84,8 @@ class Sprite extends BaseSprite {
         this.offsetX = pointer.x - this._x;
         this.offsetY = pointer.y - this._y;
 
-        bringToFront(this);
-        targetViewers(this);
+        this.parent.bringToFront(this);
+        this.parent.targetViewers(this);
     };
 
     private onMouseUp = (event: PointerEvent) => {
@@ -123,179 +105,171 @@ class Sprite extends BaseSprite {
         this.offsetY = 0;
 
         this.updatePosition();
-        updateViewers();
+        this.parent.updateViewers();
     };
 }
 
-// Generating HTML for sprite properties
-const properties: PropertyDefinition[] = [
-    { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], readonly: false, global: true},
-    { property: "x", label: "X", kind: "number", readonly: false},
-    { property: "y", label: "Y", kind: "number", readonly: false},
-    { property: "size", label: "Size", kind: "number", readonly: false},
-    { property: "rotation", label: "Direction", kind: "number", readonly: false},
 
-    {
-        property: "rotationStyle",
-        label: "Rotation Style",
-        kind: "string",
-        options: [
+// a class representing the current workspace
+class Stage implements Workspace {
+    private backdrop?: BaseBackdrop;
+    private spriteOrder: string[] = [];
+    private viewers: PropertyViewer[] = [];
+    private codeSpaceViewer = new CodeSpaceViewer();
+    readonly MAX_SPRITES = 100;
+
+    private spriteCount = 0;
+    public sprites: Map<string, BaseSprite | BaseBackdrop> = new Map();
+
+    constructor() {
+        // Generating HTML for sprite properties
+        const properties: PropertyDefinition[] = [
+            { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], readonly: false, global: true},
+            { property: "x", label: "X", kind: "number", readonly: false},
+            { property: "y", label: "Y", kind: "number", readonly: false},
+            { property: "size", label: "Size", kind: "number", readonly: false},
+            { property: "rotation", label: "Direction", kind: "number", readonly: false},
+
             {
-                name: "Left-Right", value: "left-right"
-            }, 
-            {
-                name: "All Around", value: "all around"
+                property: "rotationStyle",
+                label: "Rotation Style",
+                kind: "string",
+                options: [
+                    {
+                        name: "Left-Right", value: "left-right"
+                    }, 
+                    {
+                        name: "All Around", value: "all around"
+                    },
+                    {
+                        name: "Don't Rotate", value: "don't rotate"
+                    }
+                ], 
+                readonly: false
             },
             {
-                name: "Don't Rotate", value: "don't rotate"
+                property: "costumeName",
+                label: "Costume Name",
+                kind: "string",
+                options: [], // to be filled in. purposely left blank
+                readonly: false
+            },
+            {
+                property: "visible",
+                label: "Visible",
+                kind: "boolean",
+                readonly: false
             }
-        ], 
-        readonly: false
-    },
-    {
-        property: "costumeName",
-        label: "Costume Name",
-        kind: "string",
-        options: [], // to be filled in. purposely left blank
-        readonly: false
-    },
-    {
-        property: "visible",
-        label: "Visible",
-        kind: "boolean",
-        readonly: false
-    }
-];
+        ];
 
-const codeButton = cloneCopyButton();
-codeButton.title = "Copy code";
-
-handleCopyButton(codeButton, { get value() {return codeTextHTML.textContent;} });
-codeSpaceHTML.appendChild(codeButton);
-
-
-// interfacing with the extension
-
-const sprites: Map<string, Sprite | Backdrop> = new Map<string, Sprite | Backdrop>();
-const spriteOrder: string[] = [];
-
-const codespaceViewer = new CodeSpaceViewer();
-
-const viewers: PropertyViewer[] = [];
-
-properties.forEach(property => {
-    viewers.push(new PropertyViewer(spriteProperties, propertyTemplate, property, sprites, codespaceViewer, targetViewers));
-});
-
-
-let stageScale = 1;
-
-function resizeStage() {
-    const parent = stagePane;
-
-    if (!parent) {
-        return;
+        this.addViewers(properties)
     }
 
-    stageScale = Math.min(
-        parent.clientWidth / STAGE_WIDTH,
-        parent.clientHeight / STAGE_HEIGHT,
-    );
-    
-
-    stage.style.width = `${STAGE_WIDTH}px`;
-    stage.style.height = `${STAGE_HEIGHT}px`;
-
-    stage.style.transform = `scale(${stageScale})`;
-}
-
-
-function bringToFront(sprite: Sprite) {
-    const name = sprite.name;
-    if (name.toLowerCase() === "stage") {
-        return;
+    public targetViewers(sprite?: BaseInstance) {
+        this.viewers.forEach(viewer => {
+            viewer.selectSprite(sprite);
+        })
     }
 
-    const index = spriteOrder.indexOf(name);
+    public updateLayers() {
+        this.spriteOrder.forEach((name, layer) => {
+            const sprite = this.sprites.get(name);
 
-    if (index !== -1) {
-        spriteOrder.splice(index, 1);
+            if (!sprite) {
+                return;
+            }
+            sprite.setLayer(layer);
+            sprite.getSprite().style.zIndex = String(layer + 1);
+        });
     }
 
-    spriteOrder.push(name);
-    sprite.setLayer(spriteOrder.length);
 
-    updateLayers();
-}
+    public bringToFront(sprite: BaseSprite) {
+        const name = sprite.name;
+        const index = this.spriteOrder.indexOf(name);
 
+        if (index !== -1) {
+            this.spriteOrder.splice(index, 1);
+        }
 
-function updateLayers() {
-    spriteOrder.forEach((name, layer) => {
-        const sprite = sprites.get(name);
+        this.spriteOrder.push(name);
+        sprite.setLayer(this.spriteOrder.length);
+
+        this.updateLayers();
+    }
+
+    public updateViewers() {
+        this.viewers.forEach(viewer => {
+            viewer.update();
+        })
+    }
+
+    private rebuildViewers() {
+        this.viewers.forEach(
+            (viewer: PropertyViewer) => {
+                viewer.rebuild(true);
+            }
+        )
+    }
+
+    public removeAllSprites() {
+        for (const sprite of this.sprites.values()) {
+            sprite.remove();
+        }
+
+        this.sprites.clear();
+        this.spriteCount = 0;
+        this.spriteOrder.length = 0;
+    }
+
+    public removeSprite(name: string) {
+        const sprite = this.sprites.get(name);
 
         if (!sprite) {
             return;
         }
-        sprite.setLayer(layer);
-        sprite.getSprite().style.zIndex = String(layer + 1);
-    });
-}
 
+        this.spriteCount -= 1;
 
-function exportSpriteData() {
-    const spriteData: ObjectState[] = [];
-    sprites.forEach(sprite => {
-        spriteData.push(sprite.toJSON());
-    });
+        sprite.remove();
+        this.sprites.delete(name);
+        this.targetViewers();
+        this.rebuildViewers();
 
-    const message: Message = {
-        type: "postSaveData",
-        stageState: spriteData
-    };
+        const index = this.spriteOrder.indexOf(name);
 
-    console.log("Sending save data...");
+        if (index !== -1) {
+            this.spriteOrder.splice(index, 1);
+        }
 
-    vscode.postMessage(message);
-}
-
-
-function showNoProject() {
-    removeAllSprites();
-
-    const message = document.createElement("div");
-
-    message.className = "empty-stage";
-    message.textContent =
-        "Open an Itchy project to preview the stage.";
-
-    stage.appendChild(message);
-}
-
-
-function addSprite(spriteData: SpriteData, withData?: ObjectState) {
-    removeSprite(spriteData.name);
-
-    let sprite: Sprite | Backdrop;
-    const isStage = spriteData.name.toLowerCase() === "stage";
-
-    if (isStage) {
-        sprite = new Backdrop(stage, spriteData.costumes);
-    } else {
-        sprite = new Sprite(spriteData.name, stage, spriteData.costumes);
+        this.updateLayers();
     }
 
-    if (withData) {
-        sprite.fromJSON(withData);
-    }
+    public addSprite(spriteData: SpriteData, withData?: ObjectState) {
+        this.removeSprite(spriteData.name);
 
-    sprites.set(spriteData.name, sprite);
-    rebuildViewers();
+        if (this.spriteCount >= this.MAX_SPRITES) {
+            return;
+        }
 
-    if (!isStage) {
-        spriteOrder.push(spriteData.name);
-        spriteOrder.sort((a, b) => {
-            const layer1 = sprites.get(a)!.getLayer();
-            const layer2 = sprites.get(b)!.getLayer();
+        const sprite = new Sprite(spriteData, stageHTML, this);
+        this.spriteCount += 1;
+
+        if (withData) {
+            sprite.fromJSON(withData);
+        }
+
+        this.sprites.set(spriteData.name, sprite);
+
+        if (!spriteData.isClone) {
+            // if this sprite is a clone anyway, don't rebuild viewers since they're not supposed to be targetable.
+            this.rebuildViewers();
+        }
+
+        this.spriteOrder.push(spriteData.name);
+        this.spriteOrder.sort((a, b) => {
+            const layer1 = this.sprites.get(a)!.getLayer();
+            const layer2 = this.sprites.get(b)!.getLayer();
 
             if (layer1 === layer2) {
                 return 0;
@@ -307,63 +281,95 @@ function addSprite(spriteData: SpriteData, withData?: ObjectState) {
                 return -1;
             }
         });
+
+        this.updateLayers();
+
+        return sprite;
     }
 
-    updateLayers();
+    public setBackdrop(backdropData: SpriteData, withData?: ObjectState) {
+        if (this.backdrop) {
+            this.backdrop.remove();
+        }
+        this.backdrop = new Backdrop(backdropData, stageHTML, this);
 
-    return sprite;
+        if (withData) {
+            this.backdrop.fromJSON(withData);
+        }
+
+        this.sprites.set(backdropData.name, this.backdrop);
+        this.rebuildViewers();
+        this.updateLayers();
+    }
+
+    public addViewers(properties: PropertyDefinition[]) {
+        const codeButton = cloneCopyButton();
+        codeButton.title = "Copy code";
+
+        handleCopyButton(codeButton, { get value() {return codeTextHTML.textContent;} });
+        codeSpaceHTML.appendChild(codeButton);
+
+        properties.forEach(property => {
+            this.viewers.push(new PropertyViewer(
+                spriteProperties, 
+                propertyTemplate, 
+                property, 
+                this.codeSpaceViewer, 
+                this
+            ));
+        });
+    }
+
+    public exportSpriteData() {
+        const spriteData: ObjectState[] = [];
+        this.sprites.forEach(sprite => {
+            spriteData.push(sprite.toJSON());
+        });
+
+        const message: Message = {
+            type: "postSaveData",
+            stageState: spriteData
+        };
+
+        console.log("Sending save data...");
+
+        vscode.postMessage(message);
+    }
+
 }
 
 
-function removeSprite(name: string) {
-    const sprite = sprites.get(name);
+const workspace = new Stage();
 
-    if (!sprite) {
-        return;
-    }
 
-    sprite.remove();
-    sprites.delete(name);
-    targetViewers();
-    rebuildViewers();
+function showNoProject() {
+    const message = document.createElement("div");
 
-    const index = spriteOrder.indexOf(name);
+    message.className = "empty-stage";
+    message.textContent =
+        "Open an Itchy project to preview the stage.";
 
-    if (index !== -1) {
-        spriteOrder.splice(index, 1);
-    }
-
-    updateLayers();
+    stageHTML.appendChild(message);
 }
-
-
-function removeAllSprites() {
-    for (const sprite of sprites.values()) {
-        sprite.remove();
-    }
-
-    sprites.clear();
-    spriteOrder.length = 0;
-}
-
 
 window.addEventListener("message", event => {
     const message: Message = event.data;
 
     switch (message.type) {
         case "addSprite":
-            const sprite = addSprite(message.sprite!);
-            if (message.sprite?.data) {
-                sprite.fromJSON(message.sprite.data);
+            if (message.sprite!.name.toLowerCase() !== "stage") {
+                workspace.addSprite(message.sprite!, message.sprite!.data);
+            } else {
+                workspace.setBackdrop(message.sprite!, message.sprite!.data)
             }
             break;
 
         case "removeSprite":
-            removeSprite(message.sprite!.name);
+            workspace.removeSprite(message.sprite!.name);
             break;
 
         case "removeAllSprites":
-            removeAllSprites();
+            workspace.removeAllSprites();
             break;
 
         case "noProject":
@@ -371,13 +377,7 @@ window.addEventListener("message", event => {
             break;
             
         case "requestSaveData":
-            exportSpriteData();
+            workspace.exportSpriteData();
             break;
     }
 });
-
-
-// window.addEventListener("resize", resizeStage);
-
-// resizeStage();
-

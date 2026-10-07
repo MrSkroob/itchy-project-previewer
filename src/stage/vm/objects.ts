@@ -1,15 +1,25 @@
-import { CostumeData, ObjectState } from "../../messageTypes";
+import { CostumeData, ObjectState, SpriteData } from "../../messageTypes";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
-import * as maths from "../common/mathsUtils";
+// import * as maths from "../common/mathsUtils";
 
 
 const BACKDROP_Z_INDEX = 0;
+
+
+export abstract class Workspace {
+    /**
+     * name
+     */
+    public abstract sprites: Map<string, BaseInstance>;
+    public abstract targetViewers(target: BaseInstance): void;
+}
 
 
 export class BaseInstance {
     // Scratch coordinates
     public variables: Map<String, unknown> = new Map();
     public lists: Map<String, unknown[]> = new Map();
+    public isClone?: boolean;
     protected _costumeNumber = 0;
 
     protected _name: string;
@@ -19,7 +29,11 @@ export class BaseInstance {
     protected costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
 
     protected sprite: HTMLDivElement;
-    protected stage: HTMLElement;
+    protected stageHTML: HTMLElement;
+
+    public getLayer() {
+        return BACKDROP_Z_INDEX;
+    }
 
     public get name() {
         return this._name;
@@ -51,18 +65,19 @@ export class BaseInstance {
         this.switchCostumeTo(costumeIndex!);
     }
 
-    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        this._name = name;
-        this.costumes = costumes;
-        this.stage = stage;
+    constructor(data: SpriteData, stageHTML: HTMLElement) {
+        this._name = data.name;
+        this.costumes = data.costumes;
+        this.stageHTML = stageHTML;
+        this.isClone = data.isClone;
 
         this.sprite = document.createElement("div");
-        this.sprite.dataset.spriteId = name;
+        this.sprite.dataset.spriteId = data.name;
 
         this.costumeMap = new Map();
 
         let index = 0;
-        for (const costume of costumes) {
+        for (const costume of data.costumes) {
             this.costumeMap.set(costume.name, index);
             index += 1;
         }
@@ -73,7 +88,7 @@ export class BaseInstance {
         this.sprite.replaceChildren(image);
 
         // Actually add the sprite to the HTML stage
-        this.stage.appendChild(this.sprite);
+        this.stageHTML.appendChild(this.sprite);
 
         if (this.costumes.length > 0) {
             this.switchCostumeTo(0);
@@ -104,32 +119,20 @@ export class BaseInstance {
     }
 
     public remove() {
-        // if (selectedSprite && selectedSprite.name === this.name) {
-        //     selectedSprite = undefined;
-        // }
         this.sprite.remove();
     }
 }
 
 
 export class BaseBackdrop extends BaseInstance {
-    constructor(stage: HTMLElement, costumes: CostumeData[]) {
-        super("stage", stage, costumes);
+    constructor(data: SpriteData, stageHTML: HTMLElement) {
+        super(data, stageHTML);
         this.sprite.className = "backdrop";
         this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
-        // this.sprite.style.left =
-        //     `${STAGE_WIDTH / 2}px`;
-
-        // this.sprite.style.top =
-        //     `${STAGE_HEIGHT / 2}px`;
     }
 
     public setLayer() {
         return;
-    }
-
-    public getLayer() {
-        return BACKDROP_Z_INDEX;
     }
 
     public toJSON(): ObjectState {
@@ -231,8 +234,8 @@ export class BaseSprite extends BaseInstance {
         this.setRotation(this._rotation);
     }
 
-    constructor(name: string, stage: HTMLElement, costumes: CostumeData[]) {
-        super(name, stage, costumes);
+    constructor(data: SpriteData, stageHTML: HTMLElement) {
+        super(data, stageHTML);
         this.sprite.className = "sprite";
         this.updatePosition();
     }
@@ -289,21 +292,9 @@ export class BaseSprite extends BaseInstance {
     }
 
     public updatePosition() {
-        // Always use the logical 480x360 coordinate system.
-        // CSS scaling handles how large the stage appears on screen.
         let x = Math.round(this._x);
         let y = Math.round(this._y);
 
-        // const left = (x + (STAGE_WIDTH / 2)) / (STAGE_WIDTH * 100);
-        // const top = ((STAGE_HEIGHT / 2) - y) / (STAGE_HEIGHT * 100);
-        // // this._x = maths.clamp(x, -(STAGE_WIDTH / 2), STAGE_WIDTH / 2);
-        // // this._y = maths.clamp(y, -(STAGE_HEIGHT / 2), STAGE_HEIGHT / 2);
-
-        // this.sprite.style.left =
-        //     `${left * 100}%`;
-
-        // this.sprite.style.top =
-        //     `${top * 100}%`;
         this.sprite.style.left =
         `${((x + STAGE_WIDTH / 2) / STAGE_WIDTH) * 100}%`;
 
@@ -343,3 +334,4 @@ export class BaseSprite extends BaseInstance {
         this.costumeNumber = state.costumeNumber;
     }
 }
+

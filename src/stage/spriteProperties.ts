@@ -1,4 +1,4 @@
-import { BaseBackdrop, BaseSprite, BaseInstance } from "./vm/objects";
+import { Workspace, BaseInstance } from "./vm/objects";
 import { hasProperty } from "./common/ownershipUtils";
 
 export const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
@@ -180,24 +180,24 @@ export class PropertyViewer {
 
     private readonly: boolean;
     private codeSpaceViewer: CodeSpaceViewer;
-    private sprites: Map<string, BaseInstance>;
+
+    private workspace: Workspace;
+    // private sprites: Map<string, BaseInstance>;
 
     // external method to be called which updates all property viewers.
-    private selector: (instance: BaseInstance) => void;
+    // private selector: (instance: BaseInstance) => void;
 
     constructor(
         parent: HTMLElement,
         template: HTMLTemplateElement,
         property: PropertyDefinition,
-        sprites: Map<string, BaseInstance>,
         codeSpaceViewer: CodeSpaceViewer,
-        selector: (instance: BaseInstance) => void
+        workspace: Workspace
     ) {
-        this.selector = selector;
-        this.sprites = sprites;
         this.codeSpaceViewer = codeSpaceViewer;
         this.property = property;
         this.readonly = property.readonly;
+        this.workspace = workspace
 
         const node = cloneTemplate(template);
 
@@ -321,7 +321,7 @@ export class PropertyViewer {
                 }
                 return this.costumeOptions(sprite);    
             case "name":
-                return this.spriteNames(this.sprites);
+                return this.spriteNames(this.workspace.sprites);
             default:
                 break;
         }
@@ -381,10 +381,10 @@ export class PropertyViewer {
         }
 
         if (this.property.property === "name") {
-            const sprite = this.sprites.get(String(input));
+            const sprite = this.workspace.sprites.get(String(input));
             if (!sprite) { return; }
             this.selectSprite(sprite, false);
-            this.selector(sprite);
+            this.workspace.targetViewers(sprite);
             return;
         }
 
@@ -439,14 +439,10 @@ export class PropertyViewer {
             this.getInput().disabled = true;
             return;
         }
-
-        // console.log("updating:", this.property.property)
         
         this.getInput().disabled = false;
 
-        const value =
-            this.selectedSprite[this.property.property];
-        console.log(value);
+        const value = this.selectedSprite[this.property.property];
 
         this.propertyNameNode.textContent = this.property.label;
 

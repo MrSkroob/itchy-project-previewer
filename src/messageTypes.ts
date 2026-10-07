@@ -8,6 +8,7 @@ export interface SpriteData {
     name: string;
     costumes: CostumeData[];
     data?: ObjectState;
+    isClone?: boolean;
 }
 
 
