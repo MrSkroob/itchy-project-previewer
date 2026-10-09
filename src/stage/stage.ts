@@ -5,8 +5,18 @@ import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
 
 
+const canvas = document.getElementById("stage-canvas")! as HTMLCanvasElement;
 const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
+
+
+const glLoad = canvas.getContext("webgl2") || canvas.getContext("webgl");
+
+if (!glLoad) {
+    throw new Error("This browser/device does not support webgl");
+}
+
+const gl = glLoad;
 
 
 enum ExecutionMode {
@@ -22,7 +32,7 @@ class Backdrop extends BaseBackdrop {
     private parent: Stage;
 
     constructor(data: SpriteData, stageHTML: HTMLElement, parent: Stage) {
-        super(data, stageHTML);
+        super(gl, data, stageHTML);
         this.parent = parent;
         this.sprite.className = "backdrop";
         this.sprite.addEventListener("pointerdown", this.onMouseDown);
@@ -42,7 +52,7 @@ class Sprite extends BaseSprite {
     private parent: Stage; 
 
     constructor(data: SpriteData, stage: HTMLElement, parent: Stage) {
-        super(data, stage);
+        super(gl, data, stage);
         this.parent = parent;
         this.sprite.addEventListener("pointerdown", this.onMouseDown);
         this.sprite.addEventListener("pointerup", this.onMouseUp);

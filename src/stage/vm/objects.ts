@@ -1,6 +1,6 @@
 import { CostumeData, ObjectState, SpriteData } from "../../messageTypes";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
-import { Drawable } from "../renderer/drawable";
+import { Drawable } from "../renderer/renderer";
 // import * as maths from "../common/mathsUtils";
 
 
@@ -39,9 +39,9 @@ export class BaseInstance extends Drawable {
     protected sprite: HTMLDivElement;
     protected stageHTML: HTMLElement;
 
-    public getLayer() {
-        return BACKDROP_Z_INDEX;
-    }
+    // public getLayer() {
+    //     return BACKDROP_Z_INDEX;
+    // }
 
     public get name() {
         return this._name;
@@ -73,8 +73,8 @@ export class BaseInstance extends Drawable {
         this.switchCostumeTo(costumeIndex!);
     }
 
-    constructor(data: SpriteData, stageHTML: HTMLElement) {
-        super(data.costumes);
+    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+        super(gl, data.costumes);
         this._name = data.name;
         this.costumes = data.costumes;
         this.stageHTML = stageHTML;
@@ -91,10 +91,10 @@ export class BaseInstance extends Drawable {
             index += 1;
         }
 
-        const image = document.createElement("img");
-        image.draggable = false;
-        this.costume = image;
-        this.sprite.replaceChildren(image);
+        // const image = document.createElement("img");
+        // image.draggable = false;
+        // this.costume = image;
+        // this.sprite.replaceChildren(image);
 
         // Actually add the sprite to the HTML stage
         this.stageHTML.appendChild(this.sprite);
@@ -106,13 +106,6 @@ export class BaseInstance extends Drawable {
 
     public getSprite() {
         return this.sprite;
-    }
-
-    private getCostume(index: number) {
-        if (index < 0 || index >= this.costumes.length) {
-            return;
-        }
-        return this.costumes[index];
     }
 
     // public switchCostumeTo(index: number) {
@@ -134,8 +127,8 @@ export class BaseInstance extends Drawable {
 
 
 export class BaseBackdrop extends BaseInstance {
-    constructor(data: SpriteData, stageHTML: HTMLElement) {
-        super(data, stageHTML);
+    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+        super(gl, data, stageHTML);
         if (data.data) {
             this.fromJSON(data.data);
         }
@@ -169,20 +162,20 @@ export class BaseBackdrop extends BaseInstance {
 
 
 export class BaseSprite extends BaseInstance {
-    protected _size = 100;
+    // protected _size = 100;
 
-    protected _layer = 0;
-    protected _rotation = 0;
-    protected _rotationStyle = "all around";
+    // protected _layer = 0;
+    // protected _rotation = 0;
+    // protected _rotationStyle = "all around";
 
-    protected _x = 0;
-    protected _y = 0;
+    // protected _x = 0;
+    // protected _y = 0;
 
-    protected _visible = true;
+    // protected _visible = true;
 
-    public getLayer() {
-        return this._layer;
-    }
+    // public getLayer() {
+    //     return this._layer;
+    // }
 
     public setLayer(value: number) {
         // careful: this doesn't update the sprite's layer during runtime.
@@ -246,8 +239,8 @@ export class BaseSprite extends BaseInstance {
         this.setRotation(this._rotation);
     }
 
-    constructor(data: SpriteData, stageHTML: HTMLElement) {
-        super(data, stageHTML);
+    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+        super(gl, data, stageHTML);
         this.sprite.className = "sprite";
         if (data.data) {
             this.fromJSON(data.data);
@@ -259,10 +252,10 @@ export class BaseSprite extends BaseInstance {
         return this.sprite;
     }
 
-    public setVisible(visible: boolean) {
-        this._visible = visible;
-        this.sprite.hidden = !visible;
-    }
+    // public setVisible(visible: boolean) {
+    //     this._visible = visible;
+    //     this.sprite.hidden = !visible;
+    // }
 
     // public setSize(size: number) {
     //     this._size = size;
@@ -277,11 +270,11 @@ export class BaseSprite extends BaseInstance {
     //     image.style.scale = String(scale);
     // }
 
-    private pointsLeft(direction: number) {
-        direction = ((direction + 180) % 360 + 360) % 360 - 180;
+    // private pointsLeft(direction: number) {
+    //     direction = ((direction + 180) % 360 + 360) % 360 - 180;
 
-        return direction < 0;
-    }
+    //     return direction < 0;
+    // }
 
     // public setRotation(degrees: number) {
     //     const image = this.costume;
@@ -331,7 +324,7 @@ export class BaseSprite extends BaseInstance {
             data: this.toJSON(),
             isClone: true
         };
-        return new BaseSprite(data, this.stageHTML);
+        return new BaseSprite(this.gl, data, this.stageHTML);
     }
 
     public toJSON(): ObjectState {
