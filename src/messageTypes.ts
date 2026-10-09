@@ -1,6 +1,8 @@
 export interface CostumeData {
     name: string;
     fsPath: string;
+    extension: string;
+    texture?: WebGLTexture;
 }
 
 

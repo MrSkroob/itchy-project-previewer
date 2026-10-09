@@ -65,14 +65,14 @@ body {
     position: relative;
 
     width: 480px;
-    height: 320px;
+    height: 360px;
 
     flex: 0 0 auto;
 
     transform-origin: center;
     scale: min(
         calc(100cqw / 480px),
-        calc(100cqh / 320px)
+        calc(100cqh / 360px)
     );
 }
 
@@ -204,4 +204,158 @@ input:disabled {
 
 #text-contents {
     white-space: pre-wrap;
+}
+
+
+/* Speech/thought bubbles live directly under #stage-container, so they never
+   rotate or grow with the sprite costume. */
+.speech-bubble {
+    position: absolute;
+    z-index: 1001;
+    max-width: 210px;
+    min-width: 42px;
+    padding: 9px 12px;
+    border: 1px solid #b9bec7;
+    border-radius: 15px;
+    background: #fff;
+    color: #222;
+    font: 14px/1.35 sans-serif;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    pointer-events: none;
+    box-shadow: 0 2px 4px #0002;
+}
+
+.speech-bubble[hidden] {
+    display: none;
+}
+
+.speech-bubble--say::after {
+    content: "";
+    position: absolute;
+    left: -9px;
+    bottom: 9px;
+    border: 8px solid transparent;
+    border-left-width: 0;
+    border-right-color: #fff;
+    filter: drop-shadow(-1px 0 #b9bec7);
+}
+
+.speech-bubble--say.speech-bubble--left::after {
+    left: auto;
+    right: -9px;
+    border-left-width: 8px;
+    border-right-width: 0;
+    border-left-color: #fff;
+    filter: drop-shadow(1px 0 #b9bec7);
+}
+
+.speech-bubble--think {
+    border-radius: 22px;
+}
+
+.speech-bubble--think::after {
+    content: "";
+    position: absolute;
+    left: -10px;
+    bottom: 6px;
+    width: 9px;
+    height: 9px;
+    border: 1px solid #b9bec7;
+    border-radius: 50%;
+    background: #fff;
+}
+
+.speech-bubble--think.speech-bubble--left::after {
+    left: auto;
+    right: -10px;
+}
+
+/* Variable and list monitors are independent of the sprite selection panel. */
+.variable-monitor-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1002;
+    display: flex;
+    flex-flow: column wrap;
+    align-content: flex-start;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px;
+    pointer-events: none;
+    overflow: hidden;
+    font: 12px/1.3 sans-serif;
+}
+
+.variable-monitor,
+.list-monitor {
+    color: #333;
+    background: #f6f6f7;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px #0002;
+    max-width: 220px;
+    pointer-events: auto;
+}
+
+.variable-monitor {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 3px 5px 3px 8px;
+}
+
+.monitor-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.monitor-value {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 3px 9px;
+    min-width: 28px;
+    max-width: 130px;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.list-monitor {
+    display: flex;
+    flex-direction: column;
+    min-width: 130px;
+    max-height: min(200px, calc(100% - 8px));
+    padding: 5px 8px;
+}
+
+.list-monitor > .monitor-name {
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.monitor-list-entries {
+    margin: 0;
+    padding: 2px 6px 2px 28px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    overflow: auto;
+    min-height: 22px;
+}
+
+.monitor-list-entries li {
+    padding: 2px 3px;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid #eee;
+}
+
+.monitor-list-entries li:last-child {
+    border-bottom: 0;
+}
+
+.monitor-list-length {
+    text-align: center;
+    margin-top: 4px;
+    color: #666;
 }

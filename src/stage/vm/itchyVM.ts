@@ -1,26 +1,96 @@
-import { BaseBackdrop, BaseSprite } from "./objects";
+import { BaseBackdrop, BaseSprite, Workspace } from "./objects";
 
 export interface ExecutionContext {
     sprite?: BaseSprite
     backdrop: BaseBackdrop
 };
 
+export interface Runtime {
+    isKeyDown(key: string): boolean;
+    // broadcast(message: string): EventRun;
+    // other VM-facing operations scripts may need
+}
 
 type YieldInstruction = 
-    | {type: "yield"}
+    | {type: "waitOneFrame"}
     | {type: "wait"; seconds: number}
     | {type: "waitUntil"; condition: () => boolean}
-    | {type: "broadcastAndWait"; name: string}
-
-
-interface Blockable {
-    context: ExecutionContext;
-    script: Script;
-}
+    | {type: "waitingFor"; event: EventRun};
 
 
 type ThreadGenerator = Generator<YieldInstruction, void, unknown>;
+
 export type Script = (context: ExecutionContext) => ThreadGenerator;
+
+enum EventType {
+    KEY_STROKE,
+    MESSAGE,
+    GREEN_FLAG,
+    BACKDROP_CHANGE,
+    EXCEED,
+    CLONE,
+    SPRITE_CLICK
+}
+
+type GlobalEventType =
+    | EventType.KEY_STROKE
+    | EventType.MESSAGE
+    | EventType.GREEN_FLAG
+    | EventType.BACKDROP_CHANGE
+    | EventType.EXCEED;
+
+type InstanceEventType =
+    | EventType.CLONE
+    | EventType.SPRITE_CLICK;
+
+// These tuples describe the arguments used to select which event scripts run.
+// They are never passed to the user script itself.
+interface EventArgumentMap {
+    [EventType.GREEN_FLAG]: [];
+    [EventType.MESSAGE]: [message: string];
+    [EventType.KEY_STROKE]: [key: string];
+    [EventType.BACKDROP_CHANGE]: [];
+    [EventType.EXCEED]: [];
+    [EventType.CLONE]: [];
+    [EventType.SPRITE_CLICK]: [];
+}
+
+type EventArguments<T extends EventType> = EventArgumentMap[T];
+
+interface RegisteredScript {
+    script: Script;
+    context: ExecutionContext;
+}
+
+interface EventRegistration {
+    args: readonly unknown[];
+    script: RegisteredScript;
+}
+
+// Arrays are compared by their contents, not used as Map keys (which would
+// compare them by reference).
+type EventStore = Map<EventType, EventRegistration[]>;
+
+class EventRun {
+    // represents a singular event.
+    public threads: Thread[] = [];
+
+    public hookThread(thread: Thread) {
+        this.threads.push(thread);
+    }
+
+    public kill() {
+        this.threads.forEach(thread => {
+            thread.kill();
+        });
+    }
+
+    public isDone() {
+        return this.threads.every(
+            thread => thread.status === "done"
+        );
+    }
+}
 
 
 class Thread {
@@ -33,7 +103,7 @@ class Thread {
     private wakeTime?: number;
     private msPerTick: number;
 
-    public childThreads: Thread[] = [];
+    public childEvent?: EventRun;
 
     public get status() {
         if (this.done) {
@@ -52,26 +122,38 @@ class Thread {
         this.msPerTick = msPerTick;
     }
 
+    public kill() {
+        this.done = true;
+        this.yieldInstruction = undefined;
+        this.wakeTime = undefined;
+
+        if (this.childEvent) {
+            this.childEvent.kill();
+        }
+    }
+
     public canStep() {
         if (!this.yieldInstruction) {
             return true;
         }
 
         switch (this.yieldInstruction.type) {
-            case "yield":
+            case "waitOneFrame":
             case "wait":
                 return this.wakeTime !== undefined 
                     && performance.now() >= this.wakeTime;
             case "waitUntil":
                 return this.yieldInstruction.condition();
-            case "broadcastAndWait":
-                return this.childThreads.every(
-                    thread => thread.status === "done"
-                );
+            case "waitingFor":
+                return (this.childEvent && this.childEvent.isDone());
         }
     }
 
     public step() {
+        if (this.done) {
+            return;
+        }
+
         if (!this.canStep()) {
             return;
         }
@@ -79,7 +161,7 @@ class Thread {
         // clear everything if we were able to step.
         this.wakeTime = undefined; // we can keep this defined though...
         this.yieldInstruction = undefined;
-        this.childThreads = [];
+        this.childEvent = undefined;
 
         const result = this.generator.next();
 
@@ -96,13 +178,12 @@ class Thread {
             case "wait":
                 this.wakeTime = performance.now() + yieldInstruction.seconds * 1000;
                 break;
-            case "yield":
+            case "waitOneFrame":
                 this.wakeTime = performance.now() + this.msPerTick;
                 break;
             case "waitUntil":
                 break;
-            case "broadcastAndWait":
-                // the VM fills this in for us here.
+            case "waitingFor":
                 break;
         }
 
@@ -111,18 +192,134 @@ class Thread {
 }
 
 
-export class ItchyVM {
-    public msPerTick: number;
-    private threads: Thread[] = [];
-    private blockables: Map<string, Blockable[]> = new Map();
+function addToMapList<K, T>(map: Map<K, T[]>, item: T, key: K) {
+    let items = map.get(key);
 
-    constructor(tickrate: number) {
-        this.msPerTick = (1 / tickrate) * 1000; 
+    if (!items) {
+        items = [];
+        map.set(key, items);
     }
 
-    public spawnThread(script: Script, context: ExecutionContext) {
+    items.push(item);
+}
+
+
+export class ItchyVM {
+    public msPerTick: number;
+    // private workspace: Workspace;
+    private threads: Thread[] = [];
+
+    // private events: Map<EventType, Event> = new Map(); 
+
+    // owned by a CLONE not a regular sprite.
+    // private ownedThreads: Map<string, Thread[]> = new Map(); 
+
+    // private messageEvents: Map<string, ScriptEvent[]> = new Map();
+    // private cloneEvents: Map<string, ScriptEvent[]> = new Map();
+
+    // private events: Map
+    private events: EventStore = new Map();
+
+    private keysDown: Set<string> = new Set();
+
+    constructor(tickrate: number) {
+        // this.workspace = workspace;
+        this.msPerTick = (1 / tickrate) * 1000; 
+
+        window.addEventListener("keydown", event => {
+            this.keysDown.add(event.code);
+            this.fireGlobalEvent(EventType.KEY_STROKE, event.code);
+        });
+
+        window.addEventListener("keyup", event => {
+            this.keysDown.delete(event.code);
+        });
+    }
+
+    public registerEvent<T extends EventType>(
+        eventType: T,
+        args: EventArguments<T>,
+        script: RegisteredScript
+    ) {
+        // Copy so later changes to the caller's array cannot affect registration.
+        addToMapList(this.events, {args: [...args], script}, eventType);
+    }
+
+    private matchesEventArguments(
+        eventType: EventType,
+        registeredArgs: readonly unknown[],
+        firedArgs: readonly unknown[]
+    ): boolean {
+        // Handle event-specific matching rules (e.g. thresholds or wildcards)
+        // here, without passing arguments to user scripts.
+        switch (eventType) {
+            default:
+                // By default, all arguments must match, in order.
+                return registeredArgs.length === firedArgs.length &&
+                    registeredArgs.every((arg, index) => Object.is(arg, firedArgs[index]));
+        }
+    }
+
+    private getMatchingScripts<T extends EventType>(
+        eventType: T,
+        args: EventArguments<T>
+    ): RegisteredScript[] {
+        const registrations = this.events.get(eventType) ?? [];
+        return registrations
+            .filter(registration =>
+                this.matchesEventArguments(eventType, registration.args, args)
+            )
+            .map(registration => registration.script);
+    }
+
+    public fireInstanceEvent<T extends InstanceEventType>(
+        eventType: T,
+        instance: BaseSprite,
+        ...args: EventArguments<T>
+    ) {
+        const eventRun = new EventRun();
+
+        for (const script of this.getMatchingScripts(eventType, args)) {
+            const registeredSprite = script.context.sprite;
+
+            if (!registeredSprite) {
+                continue;
+            }
+
+            // This script belongs to a different sprite definition.
+            if (registeredSprite.name !== instance.name) {
+                continue;
+            }
+
+            const context: ExecutionContext = {
+                ...script.context,
+                sprite: instance
+            };
+
+            const thread = this.spawnScript(script, context);
+            eventRun.hookThread(thread);
+        }
+
+        return eventRun;
+    }
+
+    public fireGlobalEvent<T extends GlobalEventType>(
+        eventType: T,
+        ...args: EventArguments<T>
+    ) {
+        const eventRun = new EventRun();
+
+        for (const script of this.getMatchingScripts(eventType, args)) {
+            const thread = this.spawnScript(script);
+            eventRun.hookThread(thread);
+        }
+
+        return eventRun;
+    }
+
+    private spawnScript(script: RegisteredScript, context: ExecutionContext = script.context) {
         const thread = new Thread(
-            script(context),
+            script.script(context),
             this.msPerTick
         );
 
@@ -131,26 +328,12 @@ export class ItchyVM {
         return thread;
     }
 
-    private spawnBlockable(name: string) {
-        const scripts = this.blockables.get(name);
-
-        return scripts!.map(blockable =>
-            this.spawnThread(blockable.script, blockable.context)
-        );
+    public stop() {
+        this.threads.forEach(thread => {
+            thread.kill(); 
+        });
     }
 
-    public registerBlockable(name: string, script: Script, context: ExecutionContext) {
-        // broadcasts are considered 'blockable' as their execution
-        // will halt other threads that have 'broadcastAndWait`
-        let scripts = this.blockables.get(name);
-
-        if (!scripts) {
-            scripts = [];
-            this.blockables.set(name, scripts);
-        }
-
-        scripts.push({script: script, context: context});
-    }
 
     public step() {
         // create a copy of threads at the time of this step; 
@@ -181,16 +364,14 @@ export class ItchyVM {
                 continue;
             }
 
-            if (thread.childThreads.length > 0) {
-                const threadsFinished = thread.childThreads.every(
-                    child => child.status === "done"
-                );
+            if (thread.childEvent) {
+                const threadsFinished = thread.childEvent.isDone();
 
                 if (!threadsFinished) {
                     continue;
                 }
 
-                thread.childThreads = [];
+                thread.childEvent = undefined;
             }
 
             const yieldReason = thread.step();
@@ -207,8 +388,8 @@ export class ItchyVM {
 
         for (const {thread, yieldReason} of requests) {
             switch (yieldReason.type) {
-                case "broadcastAndWait":
-                    thread.childThreads = this.spawnBlockable(yieldReason.name);
+                case "waitingFor":
+                    thread.childEvent = yieldReason.event;
             }
         }
 

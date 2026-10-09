@@ -6,11 +6,22 @@ import { ExecutionContext } from "./itchyVM";
 // }
 
 
-export function changeX(context: ExecutionContext, dX: number) {
-    context.sprite!.x += dX;
+export function* motion_changexby(context: ExecutionContext, dx: number) {
+    const sprite = context.sprite!;
+    sprite.x += dx;
 }
 
+export function* motion_xposition(context: ExecutionContext) {
+    return context.sprite!.x;
+}
 
-export function changeY(context: ExecutionContext, dY: number) {
-    context.sprite!.y += dY;
+export function* operator_add(_: ExecutionContext, a: number, b: number) {
+    return a + b;
+}
+
+export function* control_wait(_: ExecutionContext, seconds: number) {
+    yield {
+        type: "wait",
+        seconds: Math.max(0, seconds)
+    };
 }

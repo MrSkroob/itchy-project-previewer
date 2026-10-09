@@ -108,8 +108,6 @@ export class CodeSpaceViewer {
             codeBlock += "\n    looks_hide();";
         }
 
-        // if this.vi
-
         const event = `event event_whenflagclicked() {
 ${codeBlock}
 }`;
@@ -197,7 +195,7 @@ export class PropertyViewer {
         this.codeSpaceViewer = codeSpaceViewer;
         this.property = property;
         this.readonly = property.readonly;
-        this.workspace = workspace
+        this.workspace = workspace;
 
         const node = cloneTemplate(template);
 
@@ -432,6 +430,7 @@ export class PropertyViewer {
 
     public update() {
         if (!this.selectedSprite) {
+            this.getInput().disabled = true;
             return;
         }
 

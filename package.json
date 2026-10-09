@@ -1,6 +1,7 @@
 {
   "name": "itchy-project-previewer",
   "displayName": "Itchy Project Previewer",
+  "publisher": "MrSkroob",
   "description": "A companion to the Itchy LSP to display sprite and variable locations.",
   "version": "0.0.1",
   "engines": {

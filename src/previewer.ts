@@ -130,7 +130,8 @@ export default class Stage {
             const fileUri = vscode.Uri.joinPath(costumesPath, filename);
             return {
                 name: basename(fileUri.fsPath, extname(fileUri.fsPath)),
-                fsPath: panel.webview.asWebviewUri(fileUri).toString()
+                fsPath: panel.webview.asWebviewUri(fileUri).toString(),
+                extension: extname(fileUri.fsPath)
             };
         });
 

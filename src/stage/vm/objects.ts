@@ -1,32 +1,40 @@
 import { CostumeData, ObjectState, SpriteData } from "../../messageTypes";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
+import { Drawable } from "../renderer/drawable";
 // import * as maths from "../common/mathsUtils";
 
 
 const BACKDROP_Z_INDEX = 0;
 
 
-export abstract class Workspace {
-    /**
-     * name
-     */
-    public abstract sprites: Map<string, BaseInstance>;
-    public abstract targetViewers(target: BaseInstance): void;
+export interface RuntimeWorkspace {
+    stageHTML: HTMLElement;
+    sprites: Map<string, BaseInstance>;
 }
 
 
-export class BaseInstance {
+export interface Workspace {
+    /**
+     * name
+     */
+    stageHTML: HTMLElement;
+    sprites: Map<string, BaseInstance>;
+    targetViewers(target: BaseInstance): void;
+    bringToFront(target: BaseSprite): void;
+}
+
+
+export class BaseInstance extends Drawable {
     // Scratch coordinates
-    public variables: Map<String, unknown> = new Map();
-    public lists: Map<String, unknown[]> = new Map();
+    public variables: Map<String, unknown | unknown[]> = new Map();
     public isClone?: boolean;
-    protected _costumeNumber = 0;
+    // protected _costumeNumber = 0;
 
     protected _name: string;
 
-    costumes: CostumeData[];
-    protected costume: HTMLImageElement; // the actual image element that gets updated
-    protected costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
+    // costumes: CostumeData[];
+    // protected costume: HTMLImageElement; // the actual image element that gets updated
+    // protected costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
 
     protected sprite: HTMLDivElement;
     protected stageHTML: HTMLElement;
@@ -66,6 +74,7 @@ export class BaseInstance {
     }
 
     constructor(data: SpriteData, stageHTML: HTMLElement) {
+        super(data.costumes);
         this._name = data.name;
         this.costumes = data.costumes;
         this.stageHTML = stageHTML;
@@ -106,17 +115,17 @@ export class BaseInstance {
         return this.costumes[index];
     }
 
-    public switchCostumeTo(index: number) {
-        // expects indexing from 0
-        const image = this.costumes[index];
+    // public switchCostumeTo(index: number) {
+    //     // expects indexing from 0
+    //     const image = this.costumes[index];
 
-        if (!image) {
-            return;
-        }
+    //     if (!image) {
+    //         return;
+    //     }
 
-        this._costumeNumber = index;
-        this.costume.src = image.fsPath;
-    }
+    //     this._costumeNumber = index;
+    //     this.costume.src = image.fsPath;
+    // }
 
     public remove() {
         this.sprite.remove();
@@ -127,6 +136,9 @@ export class BaseInstance {
 export class BaseBackdrop extends BaseInstance {
     constructor(data: SpriteData, stageHTML: HTMLElement) {
         super(data, stageHTML);
+        if (data.data) {
+            this.fromJSON(data.data);
+        }
         this.sprite.className = "backdrop";
         this.sprite.style.zIndex = String(BACKDROP_Z_INDEX);
     }
@@ -160,7 +172,7 @@ export class BaseSprite extends BaseInstance {
     protected _size = 100;
 
     protected _layer = 0;
-    protected _rotation = 90;
+    protected _rotation = 0;
     protected _rotationStyle = "all around";
 
     protected _x = 0;
@@ -237,6 +249,9 @@ export class BaseSprite extends BaseInstance {
     constructor(data: SpriteData, stageHTML: HTMLElement) {
         super(data, stageHTML);
         this.sprite.className = "sprite";
+        if (data.data) {
+            this.fromJSON(data.data);
+        }
         this.updatePosition();
     }
 
@@ -249,18 +264,18 @@ export class BaseSprite extends BaseInstance {
         this.sprite.hidden = !visible;
     }
 
-    public setSize(size: number) {
-        this._size = size;
-        const image = this.costume;
-        const minScale = Math.max(
-            5 / image.naturalWidth,
-            5 / image.naturalHeight
-        );
+    // public setSize(size: number) {
+    //     this._size = size;
+    //     const image = this.costume;
+    //     const minScale = Math.max(
+    //         5 / image.naturalWidth,
+    //         5 / image.naturalHeight
+    //     );
 
-        const scale = Math.max(size, minScale);
+    //     const scale = Math.max(size, minScale);
 
-        image.style.scale = String(scale);
-    }
+    //     image.style.scale = String(scale);
+    // }
 
     private pointsLeft(direction: number) {
         direction = ((direction + 180) % 360 + 360) % 360 - 180;
@@ -268,45 +283,55 @@ export class BaseSprite extends BaseInstance {
         return direction < 0;
     }
 
-    public setRotation(degrees: number) {
-        const image = this.costume;
+    // public setRotation(degrees: number) {
+    //     const image = this.costume;
 
-        this._rotation = degrees % 360;
+    //     this._rotation = degrees % 360;
 
-        switch (this._rotationStyle) {
-            case "left-right":
-                image.style.transform =
-                    this.pointsLeft(this._rotation)
-                        ? "scaleX(-1)"
-                        : "scaleX(1)";
-                break;
-            case "all around":
-                image.style.transform = `rotate(${this._rotation}deg)`;
-                break;
-            case "don't rotate":
-                image.style.transform = `rotate(0deg)`;
-                break;
-            default:
-                break;
-        }
-    }
+    //     switch (this._rotationStyle) {
+    //         case "left-right":
+    //             image.style.transform =
+    //                 this.pointsLeft(this._rotation)
+    //                     ? "scaleX(-1)"
+    //                     : "scaleX(1)";
+    //             break;
+    //         case "all around":
+    //             image.style.transform = `rotate(${this._rotation}deg)`;
+    //             break;
+    //         case "don't rotate":
+    //             image.style.transform = `rotate(0deg)`;
+    //             break;
+    //         default:
+    //             break;
+    //     }
+    // }
 
-    public updatePosition() {
-        let x = Math.round(this._x);
-        let y = Math.round(this._y);
+    // public updatePosition() {
+    //     let x = Math.round(this._x);
+    //     let y = Math.round(this._y);
 
-        this.sprite.style.left =
-        `${((x + STAGE_WIDTH / 2) / STAGE_WIDTH) * 100}%`;
+    //     this.sprite.style.left =
+    //     `${((x + STAGE_WIDTH / 2) / STAGE_WIDTH) * 100}%`;
 
-        this.sprite.style.top =
-            `${((STAGE_HEIGHT / 2 - y) / STAGE_HEIGHT) * 100}%`;
-    }
+    //     this.sprite.style.top =
+    //         `${((STAGE_HEIGHT / 2 - y) / STAGE_HEIGHT) * 100}%`;
+    // }
 
-    public remove() {
-        // if (selectedSprite && selectedSprite.name === this.name) {
-        //     selectedSprite = undefined;
-        // }
-        this.sprite.remove();
+    // public remove() {
+    //     // if (selectedSprite && selectedSprite.name === this.name) {
+    //     //     selectedSprite = undefined;
+    //     // }
+    //     this.sprite.remove();
+    // }
+
+    public clone(): BaseSprite {
+        const data = {
+            name: this.name,
+            costumes: this.costumes,
+            data: this.toJSON(),
+            isClone: true
+        };
+        return new BaseSprite(data, this.stageHTML);
     }
 
     public toJSON(): ObjectState {

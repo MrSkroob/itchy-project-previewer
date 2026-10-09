@@ -1,5 +1,6 @@
-import { Message, SpriteData, ObjectState, CostumeData } from "../messageTypes";
+import { Message, SpriteData, ObjectState } from "../messageTypes";
 import { BaseSprite, BaseBackdrop, BaseInstance, Workspace } from "./vm/objects";
+import { ItchyVM } from "./vm/itchyVM";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
 
@@ -8,7 +9,14 @@ const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
 
 
-type ExecutionMode = "editing" | "running"
+enum ExecutionMode {
+    EDIT_TIME,
+    RUN_TIME
+}
+
+// type ExecutionMode = 
+//     | "edittime" // code execution does not occur; you can drag sprites around
+//     | "runtime" // code execution mode; cannot edit sprites during runtime.
 
 class Backdrop extends BaseBackdrop {
     private parent: Stage;
@@ -111,18 +119,23 @@ class Sprite extends BaseSprite {
 
 
 // a class representing the current workspace
-class Stage implements Workspace {
+export class Stage implements Workspace  {
     private backdrop?: BaseBackdrop;
-    private spriteOrder: string[] = [];
+    private spriteOrder: BaseInstance[] = [];
     private viewers: PropertyViewer[] = [];
     private codeSpaceViewer = new CodeSpaceViewer();
     readonly MAX_SPRITES = 100;
 
     private spriteCount = 0;
+    
     public sprites: Map<string, BaseSprite | BaseBackdrop> = new Map();
+    public stageHTML: HTMLElement;
 
-    constructor() {
+    private savedSpriteEdits: Map<BaseSprite, ObjectState> = new Map();
+
+    constructor(stageHTML: HTMLElement) {
         // Generating HTML for sprite properties
+        this.stageHTML = stageHTML;
         const properties: PropertyDefinition[] = [
             { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], readonly: false, global: true},
             { property: "x", label: "X", kind: "number", readonly: false},
@@ -162,18 +175,37 @@ class Stage implements Workspace {
             }
         ];
 
-        this.addViewers(properties)
+        this.addViewers(properties);
+    }
+
+    public prepareRuntime() {
+        this.sprites.forEach(
+            (sprite, _) => {
+                if (sprite instanceof BaseBackdrop) {
+                    return;
+                }
+                this.savedSpriteEdits.set(sprite, sprite.toJSON());
+                sprite.setVisible(false);
+            }
+        );
+        this.targetViewers();
+    }
+
+    public restoreFromRuntime() {
+        this.savedSpriteEdits.forEach((data, sprite) => {
+            sprite.fromJSON(data);
+        });
     }
 
     public targetViewers(sprite?: BaseInstance) {
         this.viewers.forEach(viewer => {
             viewer.selectSprite(sprite);
-        })
+        });
     }
 
     public updateLayers() {
-        this.spriteOrder.forEach((name, layer) => {
-            const sprite = this.sprites.get(name);
+        this.spriteOrder.forEach((otherSprite, layer) => {
+            const sprite = this.sprites.get(otherSprite.name);
 
             if (!sprite) {
                 return;
@@ -183,16 +215,14 @@ class Stage implements Workspace {
         });
     }
 
-
     public bringToFront(sprite: BaseSprite) {
-        const name = sprite.name;
-        const index = this.spriteOrder.indexOf(name);
+        const index = this.spriteOrder.indexOf(sprite);
 
         if (index !== -1) {
             this.spriteOrder.splice(index, 1);
         }
 
-        this.spriteOrder.push(name);
+        this.spriteOrder.push(sprite);
         sprite.setLayer(this.spriteOrder.length);
 
         this.updateLayers();
@@ -201,7 +231,7 @@ class Stage implements Workspace {
     public updateViewers() {
         this.viewers.forEach(viewer => {
             viewer.update();
-        })
+        });
     }
 
     private rebuildViewers() {
@@ -209,7 +239,7 @@ class Stage implements Workspace {
             (viewer: PropertyViewer) => {
                 viewer.rebuild(true);
             }
-        )
+        );
     }
 
     public removeAllSprites() {
@@ -236,7 +266,7 @@ class Stage implements Workspace {
         this.targetViewers();
         this.rebuildViewers();
 
-        const index = this.spriteOrder.indexOf(name);
+        const index = this.spriteOrder.indexOf(sprite);
 
         if (index !== -1) {
             this.spriteOrder.splice(index, 1);
@@ -245,20 +275,19 @@ class Stage implements Workspace {
         this.updateLayers();
     }
 
-    public addSprite(spriteData: SpriteData, withData?: ObjectState) {
+    public getSprite(name: string) {
+        return this.sprites.get(name) as BaseSprite;
+    }
+
+    public addSprite(spriteData: SpriteData) {
         this.removeSprite(spriteData.name);
 
         if (this.spriteCount >= this.MAX_SPRITES) {
             return;
         }
 
-        const sprite = new Sprite(spriteData, stageHTML, this);
+        const sprite = new Sprite(spriteData, this.stageHTML, this);
         this.spriteCount += 1;
-
-        if (withData) {
-            sprite.fromJSON(withData);
-        }
-
         this.sprites.set(spriteData.name, sprite);
 
         if (!spriteData.isClone) {
@@ -266,10 +295,10 @@ class Stage implements Workspace {
             this.rebuildViewers();
         }
 
-        this.spriteOrder.push(spriteData.name);
+        this.spriteOrder.push(sprite);
         this.spriteOrder.sort((a, b) => {
-            const layer1 = this.sprites.get(a)!.getLayer();
-            const layer2 = this.sprites.get(b)!.getLayer();
+            const layer1 = a.getLayer();
+            const layer2 = b.getLayer();
 
             if (layer1 === layer2) {
                 return 0;
@@ -287,15 +316,11 @@ class Stage implements Workspace {
         return sprite;
     }
 
-    public setBackdrop(backdropData: SpriteData, withData?: ObjectState) {
+    public setBackdrop(backdropData: SpriteData) {
         if (this.backdrop) {
             this.backdrop.remove();
         }
-        this.backdrop = new Backdrop(backdropData, stageHTML, this);
-
-        if (withData) {
-            this.backdrop.fromJSON(withData);
-        }
+        this.backdrop = new Backdrop(backdropData, this.stageHTML, this);
 
         this.sprites.set(backdropData.name, this.backdrop);
         this.rebuildViewers();
@@ -339,10 +364,12 @@ class Stage implements Workspace {
 }
 
 
-const workspace = new Stage();
+const workspace = new Stage(stageHTML);
 
 
 function showNoProject() {
+    workspace.removeAllSprites();
+
     const message = document.createElement("div");
 
     message.className = "empty-stage";
@@ -358,9 +385,9 @@ window.addEventListener("message", event => {
     switch (message.type) {
         case "addSprite":
             if (message.sprite!.name.toLowerCase() !== "stage") {
-                workspace.addSprite(message.sprite!, message.sprite!.data);
+                workspace.addSprite(message.sprite!);
             } else {
-                workspace.setBackdrop(message.sprite!, message.sprite!.data)
+                workspace.setBackdrop(message.sprite!);
             }
             break;
 
