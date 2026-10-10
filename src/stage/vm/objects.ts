@@ -185,7 +185,7 @@ export class BaseSprite extends BaseInstance {
     }
 
     public get rotation() {
-        return this._rotation + 90;
+        return Math.round(this._rotation + 90);
     }
 
     public set rotation(value: number) {
@@ -251,6 +251,7 @@ export class BaseSprite extends BaseInstance {
         this._layer = state.layer;
         this.rotation = state.rotation;
         this.size = state.size;
+        this.visible = state.visible;
         this.rotationStyle = state.rotationStyle;
         this.costumeNumber = state.costumeNumber;
     }

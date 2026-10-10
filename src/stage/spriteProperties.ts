@@ -1,5 +1,5 @@
-import { Workspace, BaseInstance } from "./vm/objects";
-import { hasProperty } from "./common/ownershipUtils";
+import { Workspace, BaseInstance, BaseBackdrop } from "./vm/objects";
+import { hasProperty, isWritableProperty } from "./common/ownershipUtils";
 
 export const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
 // const copyButtonTemplate = document.getElementById("copy-button-template") as HTMLTemplateElement;
@@ -52,6 +52,25 @@ export function handleCopyButton(button: HTMLButtonElement, input: HTMLElementWi
         });
     });
 }
+
+
+const propertyAccess = {
+    sprite: {
+        name: true,
+        x: true,
+        y: true,
+        size: true,
+        rotation: true,
+        rotationStyle: true,
+        visible: true,
+        // layer: "read",
+        costumeName: true
+    },
+    backdrop: {
+        name: true,
+        costumeName: true
+    }
+};
 
 
 export class CodeSpaceViewer {
@@ -145,7 +164,7 @@ export type PropertyDefinition =
         property: NumberProperty;
         label: string;
         global?: boolean; // means that this should persist between sprites. for example, the list of sprites shouldn't change if you've moved one.
-        readonly: boolean
+        // readonly: boolean
     }
     | {
         options?: Option[];
@@ -153,14 +172,14 @@ export type PropertyDefinition =
         property: StringProperty;
         label: string;
         global?: boolean;
-        readonly: boolean;
+        // readonly: boolean;
     }
     | {
         property: BooleanProperty;
         kind: "boolean";
         label: string;
         global?: boolean;
-        readonly: boolean
+        // readonly: boolean
     };
 
 
@@ -176,7 +195,6 @@ export class PropertyViewer {
     private input?: HTMLInputElement;
     private select?: HTMLSelectElement;
 
-    private readonly: boolean;
     private codeSpaceViewer: CodeSpaceViewer;
 
     private workspace: Workspace;
@@ -194,7 +212,6 @@ export class PropertyViewer {
     ) {
         this.codeSpaceViewer = codeSpaceViewer;
         this.property = property;
-        this.readonly = property.readonly;
         this.workspace = workspace;
 
         const node = cloneTemplate(template);
@@ -234,7 +251,6 @@ export class PropertyViewer {
             this.propertyValueNode.appendChild(this.buildOptions(property.options));
         } else {
             const input = document.createElement("input");
-            input.readOnly = this.readonly;
             this.input = input;
             this.input.className = "text";
             this.propertyValueNode.appendChild(input);
@@ -373,10 +389,10 @@ export class PropertyViewer {
 
         const oldValue = String(this.selectedSprite[this.property.property]);
 
-        if (this.readonly) {
-            this.setInputValue(oldValue);
-            return;
-        }
+        // if (this.readonly) {
+        //     this.setInputValue(oldValue);
+        //     return;
+        // }
 
         if (this.property.property === "name") {
             const sprite = this.workspace.sprites.get(String(input));
@@ -434,13 +450,19 @@ export class PropertyViewer {
             return;
         }
 
+        if (this.selectedSprite instanceof BaseBackdrop) {
+            this.getInput().disabled = !(propertyAccess.backdrop as any)[this.property.property];
+        } else {
+            this.getInput().disabled = !(propertyAccess.sprite as any)[this.property.property];
+        }
+        // this.getInput().disabled = (!hasProperty(this.selectSprite, this.property.property)
+        //     || !isWritableProperty(this.selectedSprite, this.property.property))
+        //     && this.property.property !== "name";
+
         if (!hasProperty(this.selectedSprite, this.property.property)) {
-            this.getInput().disabled = true;
             return;
         }
         
-        this.getInput().disabled = false;
-
         const value = this.selectedSprite[this.property.property];
 
         this.propertyNameNode.textContent = this.property.label;

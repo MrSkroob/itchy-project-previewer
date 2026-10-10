@@ -1,18 +1,26 @@
-import { Texture } from "../messageTypes";
+import { Texture, CachedTexture } from "../messageTypes";
 import { STAGE_WIDTH, STAGE_HEIGHT } from "../common/constants";
 import { shader as fragCode } from "./shaders/fragmentShader.glsl";
 import { shader as vertCode } from "./shaders/vertexShader.glsl";
 
 
-export async function rasteriseSVG(uri: string) {
+// One cache per WebGL context.
+// WebGLTexture objects cannot be shared between unrelated contexts.
+const svgCaches = new WeakMap<
+    WebGL2RenderingContext,
+    Map<string, Promise<CachedTexture>>
+>();
+
+
+export async function rasteriseSVG(uri: string, scale: number) {
     const image = new Image();
 
     image.src = uri;
     await image.decode();
 
     const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
+    canvas.width = image.naturalWidth * scale;
+    canvas.height = image.naturalHeight * scale;
 
     const ctx = canvas.getContext("2d");
 
@@ -80,8 +88,9 @@ export async function createImageTexture(gl: WebGL2RenderingContext, uri: string
     };
 }
 
-export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: string): Promise<Texture> {
-    const canvas = await rasteriseSVG(uri);
+
+export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: string, scale: number=1): Promise<Texture> {
+    const canvas = await rasteriseSVG(uri, scale);
     const texture = gl.createTexture();
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -125,13 +134,48 @@ export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: str
 }
 
 
-export async function getTexture(gl: WebGL2RenderingContext, uri: string, fileExtension: string): Promise<Texture> {
-    switch (fileExtension) {
-        case ".svg":
-            return await createSVGImageTexture(gl, uri);
-        default:
-            return await createImageTexture(gl, uri);
+export function getTexture(
+    gl: WebGL2RenderingContext,
+    uri: string,
+    fileExtension: string,
+    maxSVGScale: number = 5
+): Promise<CachedTexture> {
+    if (fileExtension.toLowerCase() !== ".svg") {
+        return createImageTexture(gl, uri);
     }
+
+    let cache = svgCaches.get(gl);
+
+    if (!cache) {
+        cache = new Map();
+        svgCaches.set(gl, cache);
+    }
+
+    const maximum = Math.max(1, Math.floor(maxSVGScale));
+    const key = JSON.stringify([uri, maximum]);
+
+    const cached = cache.get(key);
+
+    if (cached) {
+        return cached;
+    }
+
+    const promise = createSVGImageTexture(
+        gl,
+        uri,
+        maximum
+    );
+
+    cache.set(key, promise);
+
+    // Failed loads should be retryable.
+    promise.catch(() => {
+        if (cache.get(key) === promise) {
+            cache.delete(key);
+        }
+    });
+
+    return promise;
 }
 
 
@@ -182,6 +226,17 @@ export class SpriteRenderer {
         const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertCode);
         const program = createGLProgram(gl, vertexShader, fragmentShader);
 
+        const VERTICES = new Float32Array([
+            // X,    Y,    U, V
+            -0.5, -0.5,   0, 1,
+            0.5, -0.5,   1, 1,
+            -0.5,  0.5,   0, 0,
+
+            -0.5,  0.5,   0, 0,
+            0.5, -0.5,   1, 1,
+            0.5,  0.5,   1, 0
+        ]);
+
         gl.useProgram(program);
 
         this.gl = gl;
@@ -193,7 +248,14 @@ export class SpriteRenderer {
         const imageBufferLocation = gl.getUniformLocation(program, "u_texture");
         this.matrixUniformLocation = gl.getUniformLocation(program, "u_matrix");
 
+
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            VERTICES,
+            gl.STATIC_DRAW
+        );
+
         gl.enableVertexAttribArray(posBufferLocation);
         gl.vertexAttribPointer(posBufferLocation, 2, gl.FLOAT, false, 16, 0)
 
@@ -209,57 +271,25 @@ export class SpriteRenderer {
         gl.activeTexture(gl.TEXTURE0);
     }
 
-    private getBuffer(image: Texture, x: number, y: number, scale = 1) {
-        const width = image.width * scale;
-        const height = image.height * scale;
+    private selectTexture(
+        image: CachedTexture,
+        scale: number
+    ): [WebGLTexture, number] {
+        const levels = image.svgLevels;
 
-        // Convert from Scratch coordinates to canvas coordinates.
-        // Scratch: centre origin, positive Y points upwards.
-        // Canvas: top-left origin, positive Y points downwards.
-        const centreX = x + STAGE_WIDTH / 2;
-        const centreY = STAGE_HEIGHT / 2 - y;
+        // PNGs and other raster images only have one texture.
+        if (!levels || levels.length === 0) {
+            return [image.texture, 1];
+        }
 
-        const destinationLeft = centreX - width / 2;
-        const destinationRight = centreX + width / 2;
-
-        const destinationTop = centreY - height / 2;
-        const destinationBottom = centreY + height / 2;
-
-        // Texture coordinates.
-        const textureLeft = 0;
-        const textureRight = 1;
-        const textureTop = 0;
-        const textureBottom = 1;
-
-        const vertices = new Float32Array([
-            // Position                         Texture coordinates
-            destinationLeft, destinationBottom, textureLeft, textureBottom,
-            destinationRight, destinationBottom, textureRight, textureBottom,
-            destinationLeft, destinationTop,    textureLeft, textureTop,
-
-            destinationLeft, destinationTop,    textureLeft, textureTop,
-            destinationRight, destinationBottom, textureRight, textureBottom,
-            destinationRight, destinationTop,    textureRight, textureTop
-        ]);
-
-        // splurge our image to the canvas' bounds
-        const projectionMatrix = new Float32Array([
-            2 / STAGE_WIDTH, 0, 0, 0,
-            0, -2 / STAGE_HEIGHT, 0, 0,
-            0, 0, 1, 0,
-            -1, 1, 0, 1
-        ]);
-
-        const transformationMatrix = projectionMatrix;
-
-        this.gl.uniformMatrix4fv(
-            this.matrixUniformLocation,
-            false,
-            transformationMatrix
+        // Choose the smallest cached resolution
+        // that is at least as large as the display scale.
+        const level = Math.min(
+            Math.max(1, Math.ceil(Math.abs(scale))),
+            levels.length
         );
-        
 
-        return vertices;
+        return [levels[level - 1], level];
     }
 
     public clear() {
@@ -295,21 +325,64 @@ export class SpriteRenderer {
         }
     }
 
-    public drawImage(image: Texture, x: number, y: number, scale: number, rotation: number) {
-        const buffer = this.getBuffer(image, x, y, scale);
 
-        // this.translate(buffer, 0, 0);
-        // this.rotate(buffer, rotation * (Math.PI / 180));
-        // this.scale(buffer, scale, scale);
+    private getMatrix(image: Texture, x: number, y: number, scale: number, direction: number) {
+        // Projection from Scratch coordinates to clip space.
+        // Scratch already has its origin at the centre,
+        // and positive Y points upwards.
+        const matrix = new Float32Array([
+            2 / STAGE_WIDTH, 0, 0, 0,
+            0, 2 / STAGE_HEIGHT, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+        ]);
 
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, buffer, this.gl.DYNAMIC_DRAW);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, image.texture);
-        this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+        this.translate(matrix, x, y);
 
-        const error = this.gl.getError();
+        const radians = direction * Math.PI / 180;
+        this.rotate(matrix, radians);
 
-        if (error !== this.gl.NO_ERROR) {
-            console.error("WebGL error:", error);
-        }
+        this.scale(
+            matrix,
+            image.width * scale,
+            image.height * scale
+        );
+
+        return matrix;
+    }
+
+    public drawImage(
+        image: CachedTexture,
+        x: number,
+        y: number,
+        scale: number,
+        direction: number
+    ) {
+        const [texture, levelSelected] = this.selectTexture(image, scale);
+
+        const matrix = this.getMatrix(
+            image,
+            x,
+            y,
+            scale,
+            direction
+        );
+
+        this.gl.uniformMatrix4fv(
+            this.matrixUniformLocation,
+            false,
+            matrix
+        );
+
+        this.gl.bindTexture(
+            this.gl.TEXTURE_2D,
+            texture
+        );
+
+        this.gl.drawArrays(
+            this.gl.TRIANGLES,
+            0,
+            6
+        );
     }
 }

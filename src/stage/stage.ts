@@ -146,11 +146,11 @@ export class Stage implements Workspace {
         // Generating HTML for sprite properties
         this.stageHTML = stageHTML;
         const properties: PropertyDefinition[] = [
-            { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], readonly: false, global: true},
-            { property: "x", label: "X", kind: "number", readonly: false},
-            { property: "y", label: "Y", kind: "number", readonly: false},
-            { property: "size", label: "Size", kind: "number", readonly: false},
-            { property: "rotation", label: "Direction", kind: "number", readonly: false},
+            { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], global: true},
+            { property: "x", label: "X", kind: "number"},
+            { property: "y", label: "Y", kind: "number"},
+            { property: "size", label: "Size", kind: "number"},
+            { property: "rotation", label: "Direction", kind: "number"},
 
             {
                 property: "rotationStyle",
@@ -167,20 +167,17 @@ export class Stage implements Workspace {
                         name: "Don't Rotate", value: "don't rotate"
                     }
                 ], 
-                readonly: false
             },
             {
                 property: "costumeName",
                 label: "Costume Name",
                 kind: "string",
                 options: [], // to be filled in. purposely left blank
-                readonly: false
             },
             {
                 property: "visible",
                 label: "Visible",
                 kind: "boolean",
-                readonly: false
             }
         ];
 
@@ -291,7 +288,7 @@ export class Stage implements Workspace {
         return this.sprites.get(name) as BaseSprite;
     }
 
-    public addSprite(spriteData: SpriteData) {
+    public async addSprite(spriteData: SpriteData) {
         this.removeSprite(spriteData.name);
 
         if (this.spriteCount >= this.MAX_SPRITES) {
@@ -302,7 +299,7 @@ export class Stage implements Workspace {
         this.spriteCount += 1;
         this.sprites.set(spriteData.name, sprite);
 
-        this.renderer.addDrawable(sprite.name, sprite);
+        await this.renderer.addDrawable(sprite.name, sprite);
         this.renderer.render();
 
         if (!spriteData.isClone) {
@@ -331,7 +328,7 @@ export class Stage implements Workspace {
         return sprite;
     }
 
-    public setBackdrop(backdropData: SpriteData) {
+    public async setBackdrop(backdropData: SpriteData) {
         if (this.backdrop) {
             this.backdrop.remove();
         }
@@ -340,6 +337,9 @@ export class Stage implements Workspace {
         this.sprites.set(backdropData.name, this.backdrop);
         this.rebuildViewers();
         this.updateLayers();
+
+        await this.renderer.addDrawable(backdropData.name, this.backdrop);
+        this.renderer.render();
     }
 
     public addViewers(properties: PropertyDefinition[]) {

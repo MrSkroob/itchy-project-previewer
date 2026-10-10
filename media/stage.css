@@ -76,8 +76,9 @@ body {
 }
 
 #stage-canvas {
-    width: 480;
-    height: 360px
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 /* The backdrop fills the stage. */

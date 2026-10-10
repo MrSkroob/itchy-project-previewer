@@ -5,11 +5,15 @@ export interface Texture {
 };
 
 
+export interface CachedTexture extends Texture {
+    svgLevels?: WebGLTexture[];
+}
+
 export interface CostumeData {
     name: string;
     fsPath: string;
     extension: string;
-    texture?: Texture;
+    texture?: CachedTexture;
 };
 
 
