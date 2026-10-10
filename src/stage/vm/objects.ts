@@ -1,5 +1,6 @@
-import { CostumeData, ObjectState, SpriteData } from "../../messageTypes";
-import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
+import { ObjectState, SpriteData } from "../messageTypes";
+// import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
+import { getTexture } from "../renderer/rendererUtils";
 import { Drawable } from "../renderer/renderer";
 // import * as maths from "../common/mathsUtils";
 
@@ -25,23 +26,13 @@ export interface Workspace {
 
 
 export class BaseInstance extends Drawable {
-    // Scratch coordinates
     public variables: Map<String, unknown | unknown[]> = new Map();
     public isClone?: boolean;
-    // protected _costumeNumber = 0;
 
     protected _name: string;
 
-    // costumes: CostumeData[];
-    // protected costume: HTMLImageElement; // the actual image element that gets updated
-    // protected costumeMap: Map<string, number>; // the map which maps from names to indexes, used in this.costumes[]
-
     protected sprite: HTMLDivElement;
     protected stageHTML: HTMLElement;
-
-    // public getLayer() {
-    //     return BACKDROP_Z_INDEX;
-    // }
 
     public get name() {
         return this._name;
@@ -73,7 +64,7 @@ export class BaseInstance extends Drawable {
         this.switchCostumeTo(costumeIndex!);
     }
 
-    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+    constructor(gl: WebGL2RenderingContext, data: SpriteData, stageHTML: HTMLElement) {
         super(gl, data.costumes);
         this._name = data.name;
         this.costumes = data.costumes;
@@ -108,18 +99,6 @@ export class BaseInstance extends Drawable {
         return this.sprite;
     }
 
-    // public switchCostumeTo(index: number) {
-    //     // expects indexing from 0
-    //     const image = this.costumes[index];
-
-    //     if (!image) {
-    //         return;
-    //     }
-
-    //     this._costumeNumber = index;
-    //     this.costume.src = image.fsPath;
-    // }
-
     public remove() {
         this.sprite.remove();
     }
@@ -127,7 +106,7 @@ export class BaseInstance extends Drawable {
 
 
 export class BaseBackdrop extends BaseInstance {
-    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+    constructor(gl: WebGL2RenderingContext, data: SpriteData, stageHTML: HTMLElement) {
         super(gl, data, stageHTML);
         if (data.data) {
             this.fromJSON(data.data);
@@ -162,21 +141,6 @@ export class BaseBackdrop extends BaseInstance {
 
 
 export class BaseSprite extends BaseInstance {
-    // protected _size = 100;
-
-    // protected _layer = 0;
-    // protected _rotation = 0;
-    // protected _rotationStyle = "all around";
-
-    // protected _x = 0;
-    // protected _y = 0;
-
-    // protected _visible = true;
-
-    // public getLayer() {
-    //     return this._layer;
-    // }
-
     public setLayer(value: number) {
         // careful: this doesn't update the sprite's layer during runtime.
         this._layer = value;
@@ -206,7 +170,6 @@ export class BaseSprite extends BaseInstance {
 
     public set x(value: number) {
         this._x = value;
-        this.updatePosition();
     }
 
     public get y() {
@@ -215,7 +178,6 @@ export class BaseSprite extends BaseInstance {
 
     public set y(value: number) {
         this._y = value;
-        this.updatePosition();
     }
 
     public get layer() {
@@ -239,76 +201,17 @@ export class BaseSprite extends BaseInstance {
         this.setRotation(this._rotation);
     }
 
-    constructor(gl: WebGLRenderingContext, data: SpriteData, stageHTML: HTMLElement) {
+    constructor(gl: WebGL2RenderingContext, data: SpriteData, stageHTML: HTMLElement) {
         super(gl, data, stageHTML);
         this.sprite.className = "sprite";
         if (data.data) {
             this.fromJSON(data.data);
         }
-        this.updatePosition();
     }
 
     public getSprite() {
         return this.sprite;
     }
-
-    // public setVisible(visible: boolean) {
-    //     this._visible = visible;
-    //     this.sprite.hidden = !visible;
-    // }
-
-    // public setSize(size: number) {
-    //     this._size = size;
-    //     const image = this.costume;
-    //     const minScale = Math.max(
-    //         5 / image.naturalWidth,
-    //         5 / image.naturalHeight
-    //     );
-
-    //     const scale = Math.max(size, minScale);
-
-    //     image.style.scale = String(scale);
-    // }
-
-    // private pointsLeft(direction: number) {
-    //     direction = ((direction + 180) % 360 + 360) % 360 - 180;
-
-    //     return direction < 0;
-    // }
-
-    // public setRotation(degrees: number) {
-    //     const image = this.costume;
-
-    //     this._rotation = degrees % 360;
-
-    //     switch (this._rotationStyle) {
-    //         case "left-right":
-    //             image.style.transform =
-    //                 this.pointsLeft(this._rotation)
-    //                     ? "scaleX(-1)"
-    //                     : "scaleX(1)";
-    //             break;
-    //         case "all around":
-    //             image.style.transform = `rotate(${this._rotation}deg)`;
-    //             break;
-    //         case "don't rotate":
-    //             image.style.transform = `rotate(0deg)`;
-    //             break;
-    //         default:
-    //             break;
-    //     }
-    // }
-
-    // public updatePosition() {
-    //     let x = Math.round(this._x);
-    //     let y = Math.round(this._y);
-
-    //     this.sprite.style.left =
-    //     `${((x + STAGE_WIDTH / 2) / STAGE_WIDTH) * 100}%`;
-
-    //     this.sprite.style.top =
-    //         `${((STAGE_HEIGHT / 2 - y) / STAGE_HEIGHT) * 100}%`;
-    // }
 
     // public remove() {
     //     // if (selectedSprite && selectedSprite.name === this.name) {

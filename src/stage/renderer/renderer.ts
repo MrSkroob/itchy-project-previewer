@@ -1,4 +1,5 @@
-import { CostumeData } from "../../messageTypes";
+import { CostumeData } from "../messageTypes";
+import { SpriteRenderer, getTexture } from "./rendererUtils";
 
 // export class Texture {
 
@@ -25,12 +26,28 @@ export class Drawable {
 
     costumes: CostumeData[];
 
-    constructor(gl: WebGLRenderingContext, costumes: CostumeData[]) {
+    public get x() {
+        return this._x;
+    }
+
+    public get y() {
+        return this._y;
+    }
+    
+    public get size() {
+        return this._size;
+    }
+
+    public get rotation() {
+        return this._rotation;
+    }
+
+    constructor(gl: WebGL2RenderingContext, costumes: CostumeData[]) {
         this.gl = gl;
         this.costumes = costumes;
     }
 
-   public getCostume(index?: number) {
+    public getCostume(index?: number) {
         if (!index) {
             return this.costume;
         }
@@ -51,8 +68,6 @@ export class Drawable {
 
         this._costumeNumber = index;
         this.costume = costume;
-        // this.costume = image.texture;
-        // this.costume.src = image.fsPath;
     }
 
 
@@ -63,11 +78,6 @@ export class Drawable {
 
     public setRotation(rotation: number) {
         this._rotation = rotation;
-    }
-
-
-    public updatePosition() {
-
     }
 
     public setSize(size: number) {
@@ -86,29 +96,60 @@ export class Drawable {
 
 export class Renderer {
     private drawables: Map<string, Drawable> = new Map();
-    private gl: WebGLRenderingContext;
+    private gl: WebGL2RenderingContext;
+    private renderer: SpriteRenderer;
 
     constructor(canvas: HTMLCanvasElement) {
-        const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+        const gl = canvas.getContext("webgl2");
 
         if (!gl) {
             throw new Error("neither webgl2 nor webgl technologies are supported.")
         }
 
         this.gl = gl;
+        this.renderer = new SpriteRenderer(gl);
     }
 
     public render() {
-        const gl = this.gl;
+        this.renderer.clear()
 
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        for (const [_, drawable] of this.drawables) {
+            this.drawDrawable(drawable);
+        }
     }
 
     private drawDrawable(drawable: Drawable) {
         const costume = drawable.getCostume();
+        if (!costume) {
+            throw new Error("This guy has no costume!")
+            // return;
+        }
+
+        console.log("Trying to render...")
+
+        const image = costume.texture!;
+
+        this.renderer.drawImage(
+            image, 
+            drawable.x, 
+            drawable.y, 
+            drawable.size / 100, 
+            drawable.rotation
+        );
     }
 
-    public addDrawable(id: string, drawable: Drawable) {
+    public async addDrawable(id: string, drawable: Drawable) {
+        const costume = drawable.getCostume();
+        if (!costume) {
+            throw new Error("this sprite doesn't have a costume!");
+            // return;
+        }
+
+        if (!costume.texture) {
+            console.log("No texture; generating one.")
+            costume.texture = await getTexture(this.gl, costume.fsPath, costume.extension);
+        }
+
         this.drawables.set(id, drawable);
     }
 

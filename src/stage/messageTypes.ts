@@ -1,9 +1,16 @@
+export interface Texture {
+    texture: WebGLTexture,
+    width: number,
+    height: number
+};
+
+
 export interface CostumeData {
     name: string;
     fsPath: string;
     extension: string;
-    texture?: WebGLTexture;
-}
+    texture?: Texture;
+};
 
 
 export interface SpriteData {
@@ -11,7 +18,7 @@ export interface SpriteData {
     costumes: CostumeData[];
     data?: ObjectState;
     isClone?: boolean;
-}
+};
 
 
 export interface ObjectState {
@@ -24,11 +31,11 @@ export interface ObjectState {
     layer: number;
     rotation: number;
     rotationStyle: string;
-}
+};
 
 
 export interface Message {
     type: string;
     sprite?: SpriteData | null;
     stageState?: ObjectState[];
-}
+};

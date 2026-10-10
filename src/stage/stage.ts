@@ -1,6 +1,7 @@
-import { Message, SpriteData, ObjectState } from "../messageTypes";
+import { Message, SpriteData, ObjectState } from "./messageTypes";
 import { BaseSprite, BaseBackdrop, BaseInstance, Workspace } from "./vm/objects";
-import { ItchyVM } from "./vm/itchyVM";
+// import { ItchyVM } from "./vm/itchyVM";
+import { Renderer } from "./renderer/renderer";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
 
@@ -10,7 +11,7 @@ const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
 
 
-const glLoad = canvas.getContext("webgl2") || canvas.getContext("webgl");
+const glLoad = canvas.getContext("webgl2");
 
 if (!glLoad) {
     throw new Error("This browser/device does not support webgl");
@@ -88,8 +89,6 @@ class Sprite extends BaseSprite {
 
         this._x = pointer.x - this.offsetX;
         this._y = pointer.y - this.offsetY;        
-
-        this.updatePosition();
     };
 
     private onMouseDown = (event: PointerEvent) => {
@@ -122,14 +121,14 @@ class Sprite extends BaseSprite {
         this.offsetX = 0;
         this.offsetY = 0;
 
-        this.updatePosition();
         this.parent.updateViewers();
     };
 }
 
 
 // a class representing the current workspace
-export class Stage implements Workspace  {
+export class Stage implements Workspace {
+    private renderer = new Renderer(canvas);
     private backdrop?: BaseBackdrop;
     private spriteOrder: BaseInstance[] = [];
     private viewers: PropertyViewer[] = [];
@@ -254,6 +253,7 @@ export class Stage implements Workspace  {
 
     public removeAllSprites() {
         for (const sprite of this.sprites.values()) {
+            this.renderer.removeDrawable(sprite.name);
             sprite.remove();
         }
 
@@ -270,6 +270,8 @@ export class Stage implements Workspace  {
         }
 
         this.spriteCount -= 1;
+
+        this.renderer.removeDrawable(name);
 
         sprite.remove();
         this.sprites.delete(name);
@@ -299,6 +301,9 @@ export class Stage implements Workspace  {
         const sprite = new Sprite(spriteData, this.stageHTML, this);
         this.spriteCount += 1;
         this.sprites.set(spriteData.name, sprite);
+
+        this.renderer.addDrawable(sprite.name, sprite);
+        this.renderer.render();
 
         if (!spriteData.isClone) {
             // if this sprite is a clone anyway, don't rebuild viewers since they're not supposed to be targetable.

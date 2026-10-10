@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from "fs";
 // import * as path from "path";
-import { Message, ObjectState } from "./messageTypes";
+import { Message, ObjectState } from "./stage/messageTypes";
 import { basename, extname } from 'path';
 
 

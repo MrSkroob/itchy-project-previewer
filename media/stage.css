@@ -45,7 +45,6 @@ body {
     min-width: 0;
 }
 
-
 #stage-pane {
     flex: 3 1 0;
 
@@ -74,6 +73,11 @@ body {
         calc(100cqw / 480px),
         calc(100cqh / 360px)
     );
+}
+
+#stage-canvas {
+    width: 480;
+    height: 360px
 }
 
 /* The backdrop fills the stage. */
