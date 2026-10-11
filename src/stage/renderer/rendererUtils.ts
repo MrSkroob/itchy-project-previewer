@@ -57,6 +57,21 @@ export async function createImageTexture(gl: WebGL2RenderingContext, uri: string
         image
     );
 
+    // gl.generateMipmap(gl.TEXTURE_2D);
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_MIN_FILTER,
+        gl.LINEAR_MIPMAP_LINEAR
+    );
+
+    gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_WRAP_T,
+        gl.CLAMP_TO_EDGE
+    );
+
+
     gl.texParameteri(
         gl.TEXTURE_2D,
         gl.TEXTURE_MIN_FILTER,
@@ -69,17 +84,11 @@ export async function createImageTexture(gl: WebGL2RenderingContext, uri: string
         gl.LINEAR
     );
 
-    gl.texParameteri(
-        gl.TEXTURE_2D,
-        gl.TEXTURE_WRAP_S,
-        gl.CLAMP_TO_EDGE
-    );
-
-    gl.texParameteri(
-        gl.TEXTURE_2D,
-        gl.TEXTURE_WRAP_T,
-        gl.CLAMP_TO_EDGE
-    );
+    // gl.texParameteri(
+    //     gl.TEXTURE_2D,
+    //     gl.TEXTURE_WRAP_S,
+    //     gl.CLAMP_TO_EDGE
+    // );
 
     return {
         texture: texture,
@@ -89,11 +98,20 @@ export async function createImageTexture(gl: WebGL2RenderingContext, uri: string
 }
 
 
-export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: string, scale: number=1): Promise<Texture> {
+export async function createSVGImageTexture(
+    gl: WebGL2RenderingContext,
+    uri: string,
+    scale: number = 1
+): Promise<Texture> {
     const canvas = await rasteriseSVG(uri, scale);
     const texture = gl.createTexture();
 
+    if (!texture) {
+        throw new Error("Could not create texture");
+    }
+
     gl.bindTexture(gl.TEXTURE_2D, texture);
+
     gl.texImage2D(
         gl.TEXTURE_2D,
         0,
@@ -106,9 +124,9 @@ export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: str
     gl.texParameteri(
         gl.TEXTURE_2D,
         gl.TEXTURE_MIN_FILTER,
-        gl.LINEAR
+        gl.LINEAR_MIPMAP_LINEAR
     );
-    
+
     gl.texParameteri(
         gl.TEXTURE_2D,
         gl.TEXTURE_MAG_FILTER,
@@ -126,13 +144,16 @@ export async function createSVGImageTexture(gl: WebGL2RenderingContext, uri: str
         gl.TEXTURE_WRAP_T,
         gl.CLAMP_TO_EDGE
     );
+
+    // This was missing!
+    gl.generateMipmap(gl.TEXTURE_2D);
+
     return {
-        texture: texture,
-        width: canvas.width,
-        height: canvas.height
+        texture,
+        width: canvas.width / scale,
+        height: canvas.height / scale
     };
 }
-
 
 export function getTexture(
     gl: WebGL2RenderingContext,
@@ -358,7 +379,8 @@ export class SpriteRenderer {
         scale: number,
         direction: number
     ) {
-        const [texture, levelSelected] = this.selectTexture(image, scale);
+        const texture = image.texture;
+        // const [texture, _] = this.selectTexture(image, scale);
 
         const matrix = this.getMatrix(
             image,

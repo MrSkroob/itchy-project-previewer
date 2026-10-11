@@ -2,8 +2,9 @@ import { Message, SpriteData, ObjectState } from "./messageTypes";
 import { BaseSprite, BaseBackdrop, BaseInstance, Workspace } from "./vm/objects";
 // import { ItchyVM } from "./vm/itchyVM";
 import { Renderer } from "./renderer/renderer";
-import { STAGE_HEIGHT, STAGE_WIDTH } from "./common/constants";
+import { STAGE_HEIGHT, STAGE_WIDTH, TICK_RATE } from "./common/constants";
 import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, cloneCopyButton, codeTextHTML, codeSpaceHTML, propertyTemplate } from "./spriteProperties";
+import { ItchyVM } from "./vm/itchyVM";
 
 
 const canvas = document.getElementById("stage-canvas")! as HTMLCanvasElement;
@@ -131,6 +132,7 @@ export class Stage implements Workspace {
     private renderer = new Renderer(canvas);
     private backdrop?: BaseBackdrop;
     private spriteOrder: BaseInstance[] = [];
+
     private viewers: PropertyViewer[] = [];
     private codeSpaceViewer = new CodeSpaceViewer();
     readonly MAX_SPRITES = 100;
@@ -141,6 +143,11 @@ export class Stage implements Workspace {
     public stageHTML: HTMLElement;
 
     private savedSpriteEdits: Map<BaseSprite, ObjectState> = new Map();
+
+    private lastTime?: number;
+    private accumulator = 0;
+
+    private vm = new ItchyVM(TICK_RATE);
 
     constructor(stageHTML: HTMLElement) {
         // Generating HTML for sprite properties
@@ -184,6 +191,10 @@ export class Stage implements Workspace {
         this.addViewers(properties);
     }
 
+    public registerProgram() {
+
+    }
+
     public prepareRuntime() {
         this.sprites.forEach(
             (sprite, _) => {
@@ -218,6 +229,24 @@ export class Stage implements Workspace {
             }
             sprite.setLayer(layer);
             sprite.getSprite().style.zIndex = String(layer + 1);
+        });
+    }
+
+    public addToLayer(sprite: BaseInstance) {
+        this.spriteOrder.push(sprite);
+        this.spriteOrder.sort((a, b) => {
+            const layer1 = a.getLayer();
+            const layer2 = b.getLayer();
+
+            if (layer1 === layer2) {
+                return 0;
+            }
+            else if (layer1 > layer2) {
+                return 1;
+            }
+            else {
+                return -1;
+            }
         });
     }
 
@@ -300,29 +329,14 @@ export class Stage implements Workspace {
         this.sprites.set(spriteData.name, sprite);
 
         await this.renderer.addDrawable(sprite.name, sprite);
-        this.renderer.render();
+        // this.renderer.render(this.spriteOrder);
 
         if (!spriteData.isClone) {
             // if this sprite is a clone anyway, don't rebuild viewers since they're not supposed to be targetable.
             this.rebuildViewers();
         }
 
-        this.spriteOrder.push(sprite);
-        this.spriteOrder.sort((a, b) => {
-            const layer1 = a.getLayer();
-            const layer2 = b.getLayer();
-
-            if (layer1 === layer2) {
-                return 0;
-            }
-            else if (layer1 > layer2) {
-                return 1;
-            }
-            else {
-                return -1;
-            }
-        });
-
+        this.addToLayer(sprite);
         this.updateLayers();
 
         return sprite;
@@ -332,14 +346,17 @@ export class Stage implements Workspace {
         if (this.backdrop) {
             this.backdrop.remove();
         }
-        this.backdrop = new Backdrop(backdropData, this.stageHTML, this);
+        const backdrop = new Backdrop(backdropData, this.stageHTML, this);
+        this.backdrop = backdrop;
 
-        this.sprites.set(backdropData.name, this.backdrop);
+        this.sprites.set(backdropData.name, backdrop);
+        this.addToLayer(backdrop);
+
         this.rebuildViewers();
         this.updateLayers();
 
         await this.renderer.addDrawable(backdropData.name, this.backdrop);
-        this.renderer.render();
+        // this.renderer.render(this.spriteOrder);
     }
 
     public addViewers(properties: PropertyDefinition[]) {
@@ -376,11 +393,41 @@ export class Stage implements Workspace {
         vscode.postMessage(message);
     }
 
+    public renderLoop = (time: number) => {
+        if (this.lastTime === undefined) {
+            this.lastTime = time;
+        }
+
+        const deltaTime = time - this.lastTime;
+        this.lastTime = time;
+
+        this.accumulator += Math.min(deltaTime, 250);
+
+        // Advance the simulation at a fixed tick rate.
+        let steps = 0;
+
+        while (this.accumulator >= this.vm.msPerTick && steps < 5) {
+            this.vm.step();
+            this.accumulator -= this.vm.msPerTick;
+            steps++;
+        }
+
+        // Prevent excessive catch-up after a long pause.
+        if (steps === 5) {
+            this.accumulator = 0;
+        }
+
+        // Render the latest state.
+        this.renderer.render(this.spriteOrder);
+        // console.log("Render");
+
+        requestAnimationFrame(this.renderLoop);
+    }
 }
 
 
 const workspace = new Stage(stageHTML);
-
+requestAnimationFrame(workspace.renderLoop);
 
 function showNoProject() {
     workspace.removeAllSprites();

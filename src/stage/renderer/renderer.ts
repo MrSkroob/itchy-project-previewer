@@ -1,4 +1,5 @@
 import { CostumeData } from "../messageTypes";
+import { BaseInstance } from "../vm/objects";
 import { SpriteRenderer, getTexture } from "./rendererUtils";
 
 // export class Texture {
@@ -24,7 +25,7 @@ export class Drawable {
 
     protected gl;
 
-    costumes: CostumeData[];
+    public costumes: CostumeData[];
 
     public get x() {
         return this._x;
@@ -110,11 +111,16 @@ export class Renderer {
         this.renderer = new SpriteRenderer(gl);
     }
 
-    public render() {
+    public render(renderOrder: BaseInstance[]) {
         this.renderer.clear()
 
-        for (const [_, drawable] of this.drawables) {
-            this.drawDrawable(drawable);
+        for (let index = 0; index < renderOrder.length; index++) {
+            const element = renderOrder[index];
+            const instance = this.drawables.get(element.name);
+            if (!instance) {
+                continue;
+            }
+            this.drawDrawable(instance);
         }
     }
 
@@ -125,9 +131,11 @@ export class Renderer {
             // return;
         }
 
-        console.log("Trying to render...")
-
         const image = costume.texture!;
+
+        if (!image) {
+            return;
+        }
 
         this.renderer.drawImage(
             image, 
@@ -139,15 +147,10 @@ export class Renderer {
     }
 
     public async addDrawable(id: string, drawable: Drawable) {
-        const costume = drawable.getCostume();
-        if (!costume) {
-            throw new Error("this sprite doesn't have a costume!");
-            // return;
-        }
-
-        if (!costume.texture) {
-            console.log("No texture; generating one.")
-            costume.texture = await getTexture(this.gl, costume.fsPath, costume.extension);
+        for (const costume of drawable.costumes) {
+            if (!costume.texture) {
+                costume.texture = await getTexture(this.gl, costume.fsPath, costume.extension);
+            }
         }
 
         this.drawables.set(id, drawable);
