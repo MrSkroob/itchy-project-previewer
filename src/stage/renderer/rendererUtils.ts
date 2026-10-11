@@ -93,7 +93,8 @@ export async function createImageTexture(gl: WebGL2RenderingContext, uri: string
     return {
         texture: texture,
         width: image.naturalWidth,
-        height: image.naturalHeight
+        height: image.naturalHeight,
+        svgLevel: []
     };
 }
 
@@ -102,8 +103,16 @@ export async function createSVGImageTexture(
     gl: WebGL2RenderingContext,
     uri: string,
     scale: number = 1
-): Promise<Texture> {
+): Promise<CachedTexture> {
     const canvas = await rasteriseSVG(uri, scale);
+
+    // const textureOptions = {
+    //     auto: false,
+    //     wrap: gl.CLAMP_TO_EDGE,
+    //     src: canvas,
+    //     premultiplyAlpha: true
+    // };
+
     const texture = gl.createTexture();
 
     if (!texture) {
@@ -150,8 +159,8 @@ export async function createSVGImageTexture(
 
     return {
         texture,
-        width: canvas.width / scale,
-        height: canvas.height / scale
+        width: canvas.width,
+        height: canvas.height
     };
 }
 
@@ -159,7 +168,7 @@ export function getTexture(
     gl: WebGL2RenderingContext,
     uri: string,
     fileExtension: string,
-    maxSVGScale: number = 5
+    cachLevels: number[] = [1, 2, 3, 4, 5]
 ): Promise<CachedTexture> {
     if (fileExtension.toLowerCase() !== ".svg") {
         return createImageTexture(gl, uri);
@@ -172,31 +181,69 @@ export function getTexture(
         svgCaches.set(gl, cache);
     }
 
-    const maximum = Math.max(1, Math.floor(maxSVGScale));
-    const key = JSON.stringify([uri, maximum]);
-
-    const cached = cache.get(key);
+    const cached = cache.get(uri);
 
     if (cached) {
         return cached;
     }
 
-    const promise = createSVGImageTexture(
-        gl,
-        uri,
-        maximum
-    );
+    const texture = createSVGImageTexture(gl, uri, 1);
 
-    cache.set(key, promise);
-
-    // Failed loads should be retryable.
-    promise.catch(() => {
-        if (cache.get(key) === promise) {
-            cache.delete(key);
+    texture.then((value: CachedTexture) => {
+        if (value.svgLevels === undefined) {
+            value.svgLevels = new Array(cachLevels.length);
         }
-    });
+        value.svgLevels[0] = value.texture;
 
-    return promise;
+        for (let index = 1; index < cachLevels.length; index++) {
+            const cachLevel = cachLevels[index];
+            const promise = createSVGImageTexture(gl, uri, cachLevel)
+            promise.then((cachedTexture: Texture) => {
+                value.svgLevels![index] = cachedTexture.texture;
+            });
+            promise.catch((reason) => {
+                throw new Error(`Failed to create texture: ${reason}`);
+            })
+        }
+    }).catch((reason) => {
+        throw new Error(`Failed to create texture: ${reason}`);
+    })
+
+    cache.set(uri, texture);
+
+    // for (let index = 1; index < cachLevels.length; index++) {
+    //     const cachLevel = cachLevels[index];
+    //     const cached = cache.get(key);
+    //     const promise = createSVGImageTexture(gl, uri, cachLevel);
+
+        
+
+        // cache.set(key, promise);
+    
+
+    // const cached = cache.get(key);
+
+    // if (cached) {
+    //     return cached;
+    // }
+
+    // const promise = createSVGImageTexture(
+    //     gl,
+    //     uri,
+    //     maximum
+    // );
+
+    // cache.set(key, promise);
+
+    // // Failed loads should be retryable.
+    // promise.catch(() => {
+    //     if (cache.get(key) === promise) {
+    //         cache.delete(key);
+    //     }
+    // });
+
+    // return promise;
+    return texture;
 }
 
 
@@ -241,6 +288,7 @@ export function createGLProgram(gl: WebGL2RenderingContext, vertexShader: WebGLS
 export class SpriteRenderer {
     private gl;
     private matrixUniformLocation;
+    private mirrorLocation;
 
     constructor(gl: WebGL2RenderingContext) {
         const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragCode);
@@ -265,6 +313,7 @@ export class SpriteRenderer {
         const vertexBuffer = gl.createBuffer();
         const posBufferLocation = gl.getAttribLocation(program, "a_position");
         const texCoordsLocation = gl.getAttribLocation(program, "a_texcoord");
+        this.mirrorLocation = gl.getUniformLocation(program, "u_mirror");
 
         const imageBufferLocation = gl.getUniformLocation(program, "u_texture");
         this.matrixUniformLocation = gl.getUniformLocation(program, "u_matrix");
@@ -290,27 +339,6 @@ export class SpriteRenderer {
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         gl.activeTexture(gl.TEXTURE0);
-    }
-
-    private selectTexture(
-        image: CachedTexture,
-        scale: number
-    ): [WebGLTexture, number] {
-        const levels = image.svgLevels;
-
-        // PNGs and other raster images only have one texture.
-        if (!levels || levels.length === 0) {
-            return [image.texture, 1];
-        }
-
-        // Choose the smallest cached resolution
-        // that is at least as large as the display scale.
-        const level = Math.min(
-            Math.max(1, Math.ceil(Math.abs(scale))),
-            levels.length
-        );
-
-        return [levels[level - 1], level];
     }
 
     public clear() {
@@ -361,7 +389,8 @@ export class SpriteRenderer {
         this.translate(matrix, x, y);
 
         const radians = direction * Math.PI / 180;
-        this.rotate(matrix, radians);
+        // i dunno why, but the rotations seem reversed :v
+        this.rotate(matrix, -radians);
 
         this.scale(
             matrix,
@@ -372,15 +401,28 @@ export class SpriteRenderer {
         return matrix;
     }
 
+    private selectTexture(image: CachedTexture, scale: number): [WebGLTexture, number] {
+        // const key = texture.
+        if (image.svgLevels === undefined) {
+            return [image.texture, 1];
+        }
+
+        const maxScale = Math.max(0, Math.min(Math.ceil(Math.abs(scale)), image.svgLevels.length - 1))
+
+        return [image.svgLevels[maxScale], maxScale];
+    }
+
     public drawImage(
         image: CachedTexture,
         x: number,
         y: number,
         scale: number,
-        direction: number
+        direction: number,
+        flipped: boolean
     ) {
-        const texture = image.texture;
+        const [texture, _] = this.selectTexture(image, scale);
         // const [texture, _] = this.selectTexture(image, scale);
+        // console.log(texture);
 
         const matrix = this.getMatrix(
             image,
@@ -389,6 +431,8 @@ export class SpriteRenderer {
             scale,
             direction
         );
+
+        this.gl.uniform1i(this.mirrorLocation, flipped ? 1 : 0);
 
         this.gl.uniformMatrix4fv(
             this.matrixUniformLocation,

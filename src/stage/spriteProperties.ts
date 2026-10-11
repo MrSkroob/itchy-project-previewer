@@ -1,4 +1,4 @@
-import { Workspace, BaseInstance, BaseBackdrop } from "./vm/objects";
+import { Workspace, BaseInstance, BaseBackdrop, BaseSprite } from "./vm/objects";
 import { hasProperty, isWritableProperty } from "./common/ownershipUtils";
 
 export const propertyTemplate = document.getElementById("property-input-template") as HTMLTemplateElement;
@@ -387,7 +387,7 @@ export class PropertyViewer {
             return;
         }
 
-        const oldValue = String(this.selectedSprite[this.property.property]);
+        // const oldValue = String(this.selectedSprite[this.property.property]);
 
         // if (this.readonly) {
         //     this.setInputValue(oldValue);

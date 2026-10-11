@@ -8,15 +8,15 @@ import { SpriteRenderer, getTexture } from "./rendererUtils";
 
 
 export class Drawable {
-    protected _x: number = 0;
-    protected _y: number = 0;
+    private _x: number = 0;
+    private _y: number = 0;
 
-    protected _layer: number = 0;
-    protected _size: number = 100;
-    protected _rotation: number = 0;
-    protected _visible: boolean = true;
+    private _layer: number = 0;
+    private _size: number = 100;
+    private _rotation: number = 0;
+    private _visible: boolean = true;
 
-    protected _costumeNumber = 0;
+    private _costumeNumber = 0;
 
     protected costume?: CostumeData;
     protected costumeMap: Map<string, number> = new Map();
@@ -27,20 +27,33 @@ export class Drawable {
 
     public costumes: CostumeData[];
 
-    public get x() {
+    
+    public getCostumeNumber() {
+        return this._costumeNumber;
+    }
+
+    public getX() {
         return this._x;
     }
 
-    public get y() {
+    public getY() {
         return this._y;
     }
     
-    public get size() {
+    public getSize() {
         return this._size;
     }
 
-    public get rotation() {
+    public getRotation() {
         return this._rotation;
+    }
+
+    public getRotationStyle() {
+        return this._rotationStyle;
+    }
+
+    public getVisible() {
+        return this._visible;
     }
 
     constructor(gl: WebGL2RenderingContext, costumes: CostumeData[]) {
@@ -78,7 +91,19 @@ export class Drawable {
 
 
     public setRotation(rotation: number) {
+        console.log(rotation);
+
+        rotation = rotation % 360
+
         this._rotation = rotation;
+    }
+
+    public setX(x: number) {
+        this._x = x;
+    }
+
+    public setY(y: number) {
+        this._y = y;
     }
 
     public setSize(size: number) {
@@ -131,18 +156,38 @@ export class Renderer {
             // return;
         }
 
-        const image = costume.texture!;
+        const image = costume.texture;
 
         if (!image) {
             return;
         }
 
+        let rotation = drawable.getRotation();
+        let shouldFlip = false;
+
+        switch (drawable.getRotationStyle()) {
+            case "all around":
+                break;
+            case "left-right":
+                shouldFlip = rotation > 180;
+                rotation = 0;
+                break;
+            case "don't rotate":
+                rotation = 0;
+                break;
+            default:
+                break;
+        }
+
+        // console.log(drawable.rotationStyle);
+
         this.renderer.drawImage(
             image, 
-            drawable.x, 
-            drawable.y, 
-            drawable.size / 100, 
-            drawable.rotation
+            drawable.getX(), 
+            drawable.getY(), 
+            drawable.getSize() / 100, 
+            rotation,
+            shouldFlip
         );
     }
 

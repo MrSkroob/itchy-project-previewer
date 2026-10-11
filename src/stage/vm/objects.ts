@@ -43,7 +43,7 @@ export class BaseInstance extends Drawable {
     }
 
     public get costumeNumber() {
-        return this._costumeNumber;
+        return this.getCostumeNumber();
     }
 
     public set costumeNumber(value: number) {
@@ -52,7 +52,7 @@ export class BaseInstance extends Drawable {
     }
 
     public get costumeName() {
-        return this.getCostume(this._costumeNumber)!.name;
+        return this.getCostume(this.getCostumeNumber())!.name;
     }
 
     public set costumeName(value: string) {
@@ -141,64 +141,56 @@ export class BaseBackdrop extends BaseInstance {
 
 
 export class BaseSprite extends BaseInstance {
-    public setLayer(value: number) {
-        // careful: this doesn't update the sprite's layer during runtime.
-        this._layer = value;
-    }
-
     public get visible() {
-        return this._visible;
+        return super.getVisible();
     }
 
     public set visible(value: boolean) {
-        this._visible = value;
-        this.setVisible(value);
+        super.setVisible(value);
     }
 
     public get size() {
-        return this._size * 100;
+        return super.getSize();
     }
 
     public set size(value: number) {
-        this._size = value / 100;
-        this.setSize(this._size);
+        super.setSize(value);
     }
 
     public get x() {
-        return Math.round(this._x);
+        return Math.round(super.getX());
     }
 
     public set x(value: number) {
-        this._x = value;
+        super.setX(value);
     }
 
     public get y() {
-        return Math.round(this._y);
+        return Math.round(this.getY());
     }
 
     public set y(value: number) {
-        this._y = value;
+        super.setY(value);
     }
 
     public get layer() {
-        return this._layer;
+        return this.getLayer();
     }
 
     public get rotation() {
-        return Math.round(this._rotation + 90);
+        return Math.round(this.getRotation());
     }
 
     public set rotation(value: number) {
-        this.setRotation(value - 90);
+        super.setRotation(value - 90);
     }
 
     public get rotationStyle() {
-        return this._rotationStyle;
+        return super.getRotationStyle();
     }
 
     public set rotationStyle(value: string) {
         this._rotationStyle = value;
-        this.setRotation(this._rotation);
     }
 
     constructor(gl: WebGL2RenderingContext, data: SpriteData, stageHTML: HTMLElement) {
@@ -248,7 +240,8 @@ export class BaseSprite extends BaseInstance {
         this.x = state.x;
         this.y = state.y;
         this._name = state.name;
-        this._layer = state.layer;
+        // this.layer = state.layer;
+        super.setLayer(state.layer);
         this.rotation = state.rotation;
         this.size = state.size;
         this.visible = state.visible;

@@ -7,6 +7,23 @@ import { handleCopyButton, CodeSpaceViewer, PropertyDefinition, PropertyViewer, 
 import { ItchyVM } from "./vm/itchyVM";
 
 
+interface VsCodeApi {
+    postMessage(message: unknown): void;
+    getState(): unknown;
+    setState(state: unknown): void;
+}
+
+// trust me bro
+declare function acquireVsCodeApi(): VsCodeApi;
+
+
+declare global {
+    var vscode: VsCodeApi;
+}
+
+globalThis.vscode = acquireVsCodeApi();
+
+
 const canvas = document.getElementById("stage-canvas")! as HTMLCanvasElement;
 const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
@@ -88,8 +105,8 @@ class Sprite extends BaseSprite {
         // this._x = pointer.x;
         // this._y = pointer.y;
 
-        this._x = pointer.x - this.offsetX;
-        this._y = pointer.y - this.offsetY;        
+        super.setX(pointer.x - this.offsetX);
+        super.setY(pointer.y - this.offsetY);        
     };
 
     private onMouseDown = (event: PointerEvent) => {
@@ -99,8 +116,8 @@ class Sprite extends BaseSprite {
         this.sprite.setPointerCapture(event.pointerId);
 
         // Remember where inside the sprite the user clicked.
-        this.offsetX = pointer.x - this._x;
-        this.offsetY = pointer.y - this._y;
+        this.offsetX = pointer.x - this.getX();
+        this.offsetY = pointer.y - this.getY();
 
         this.parent.bringToFront(this);
         this.parent.targetViewers(this);
@@ -116,8 +133,8 @@ class Sprite extends BaseSprite {
         const pointer = this.pointerToScratch(event);
 
         // Preserve the original click offset.
-        this._x = pointer.x - this.offsetX;
-        this._y = pointer.y - this.offsetY;
+        this.setX(pointer.x - this.offsetX);
+        this.setY(pointer.y - this.offsetY);
 
         this.offsetX = 0;
         this.offsetY = 0;
