@@ -2,18 +2,18 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 // import * as commands from "./commands";
-import Stage from "./previewer";
+import Previewer from "./previewer";
 import { watchSprites } from "./watcher";
 import { ObjectState } from './stage/messageTypes';
 
 
-let stage: Stage | null = null;
+let stage: Previewer | null = null;
 let watcher: vscode.FileSystemWatcher | null;
 
 
 function getStage(context: vscode.ExtensionContext) {
 	if (!stage || stage.isDisposed()) {
-		return new Stage(context);
+		return new Previewer(context);
 	}
 	return stage;
 }
@@ -46,7 +46,7 @@ function getProjectPath() {
 }
 
 
-async function updateStage(stage: Stage, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
+async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
 	stage.removeAllSprites();
 
 	if (!watcher) {
@@ -135,6 +135,19 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			stage.save();
+		}),
+
+		vscode.commands.registerCommand('itchy-project-previewer.runProject', () => {
+			if (!stage) {
+				return;
+			}
+			// stage.run();
+		}),
+
+		vscode.commands.registerCommand('itchy-project-previewer.stopProject', () => {
+			if (!stage) {
+				return;
+			}
 		})
 	);
 }

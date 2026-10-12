@@ -2,6 +2,7 @@ import { ObjectState, SpriteData } from "../messageTypes";
 // import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
 import { getTexture } from "../renderer/rendererUtils";
 import { Drawable } from "../renderer/renderer";
+import { type Monitor } from "../monitors";
 // import * as maths from "../common/mathsUtils";
 
 
@@ -26,13 +27,19 @@ export interface Workspace {
 
 
 export class BaseInstance extends Drawable {
-    public variables: Map<String, unknown | unknown[]> = new Map();
+    public variables: Map<string, unknown | unknown[]> = new Map();
     public isClone?: boolean;
 
+    protected monitors: WeakMap<String, Monitor> = new WeakMap();
     protected _name: string;
 
     protected sprite: HTMLDivElement;
     protected stageHTML: HTMLElement;
+
+    public setVariable(variable: string, value: any) {
+        this.variables.set(variable, value);
+        this.monitors.get(String(variable))
+    }
 
     public get name() {
         return this._name;
@@ -178,7 +185,7 @@ export class BaseSprite extends BaseInstance {
     }
 
     public get rotation() {
-        return Math.round(this.getRotation());
+        return Math.round(this.getRotation() + 90);
     }
 
     public set rotation(value: number) {

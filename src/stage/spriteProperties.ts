@@ -476,3 +476,10 @@ export class PropertyViewer {
         this.codeSpaceViewer.setValue(this.property.property, value);
     }
 }
+
+
+export class VariableViewer {
+    constructor(parent: HTMLElement, template: HTMLTemplateElement, ) {
+        const node = cloneTemplate(template);
+    }
+}

@@ -29,6 +29,14 @@
       {
         "command": "itchy-project-previewer.saveStage",
         "title": "Save Stage"
+      },
+      {
+        "command": "itchy-project-previewer.runProject",
+        "title": "Run"
+      },
+      {
+        "command": "itchy-project-previewer.stopProject",
+        "title": "Stop"
       }
     ],
     "keybindings": [
@@ -36,6 +44,18 @@
         "command": "itchy-project-previewer.saveStage",
         "key": "ctrl+s",
         "mac": "cmd+s",
+        "when": "activeWebviewPanelId == 'itchyStage'"
+      },
+      {
+        "command": "itchy-project-previewer.runProject",
+        "key": "f5",
+        "mac": "f5",
+        "when": "activeWebviewPanelId == 'itchyStage'"
+      },
+      {
+        "command": "itchy-project-previewer.stopProject",
+        "key": "shift+f5",
+        "mac": "shift+f5",
         "when": "activeWebviewPanelId == 'itchyStage'"
       }
     ]

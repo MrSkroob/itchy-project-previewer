@@ -42,4 +42,5 @@ export interface Message {
     type: string;
     sprite?: SpriteData | null;
     stageState?: ObjectState[];
+    filePath?: string;
 };

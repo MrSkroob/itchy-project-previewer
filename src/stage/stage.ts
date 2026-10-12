@@ -23,7 +23,6 @@ declare global {
 
 globalThis.vscode = acquireVsCodeApi();
 
-
 const canvas = document.getElementById("stage-canvas")! as HTMLCanvasElement;
 const stageHTML = document.getElementById("stage-container")!;
 const spriteProperties = document.getElementById("sprite-properties")!;
@@ -164,11 +163,15 @@ export class Stage implements Workspace {
     private lastTime?: number;
     private accumulator = 0;
 
-    private vm = new ItchyVM(TICK_RATE);
+    private running = false;
+
+    private prevState: Map<string, ObjectState> = new Map();
+    private vm;
 
     constructor(stageHTML: HTMLElement) {
         // Generating HTML for sprite properties
         this.stageHTML = stageHTML;
+        this.vm = new ItchyVM(TICK_RATE, this.sprites);
         const properties: PropertyDefinition[] = [
             { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], global: true},
             { property: "x", label: "X", kind: "number"},
@@ -209,7 +212,7 @@ export class Stage implements Workspace {
     }
 
     public registerProgram() {
-
+        
     }
 
     public prepareRuntime() {
@@ -316,6 +319,8 @@ export class Stage implements Workspace {
 
         this.renderer.removeDrawable(name);
 
+        this.prevState.delete(name);
+
         sprite.remove();
         this.sprites.delete(name);
         this.targetViewers();
@@ -345,6 +350,8 @@ export class Stage implements Workspace {
         this.spriteCount += 1;
         this.sprites.set(spriteData.name, sprite);
 
+        this.prevState.set(spriteData.name, sprite.toJSON());
+
         await this.renderer.addDrawable(sprite.name, sprite);
         // this.renderer.render(this.spriteOrder);
 
@@ -368,6 +375,8 @@ export class Stage implements Workspace {
 
         this.sprites.set(backdropData.name, backdrop);
         this.addToLayer(backdrop);
+
+        this.prevState.set(backdropData.name, backdrop.toJSON());
 
         this.rebuildViewers();
         this.updateLayers();
@@ -423,10 +432,12 @@ export class Stage implements Workspace {
         // Advance the simulation at a fixed tick rate.
         let steps = 0;
 
-        while (this.accumulator >= this.vm.msPerTick && steps < 5) {
-            this.vm.step();
-            this.accumulator -= this.vm.msPerTick;
-            steps++;
+        if (this.running) {
+            while (this.accumulator >= this.vm.msPerTick && steps < 5) {
+                this.vm.step();
+                this.accumulator -= this.vm.msPerTick;
+                steps++;
+            }
         }
 
         // Prevent excessive catch-up after a long pause.
@@ -439,6 +450,29 @@ export class Stage implements Workspace {
         // console.log("Render");
 
         requestAnimationFrame(this.renderLoop);
+    }
+
+    public execute(filePath: string) {
+        // runs the ... runtime
+        this.running = true;        
+        this.vm.registerProgram(filePath);
+        this.vm.start();
+
+        this.lastTime = undefined;
+        this.accumulator = 0;
+    }
+
+    public kill() {
+        // kills the runtime
+        this.running = false;
+        this.vm.stop();
+
+        this.sprites.forEach(element => {
+            const prevState = this.prevState.get(element.name);
+            if (!prevState) { return; }
+
+            element.fromJSON(prevState);
+        });
     }
 }
 
@@ -484,6 +518,16 @@ window.addEventListener("message", event => {
             
         case "requestSaveData":
             workspace.exportSpriteData();
+            break;
+        case "execute":
+            if (!message.filePath) {
+                return;
+            }
+            workspace.execute(message.filePath);
+            break;
+        case "kill":
+            workspace.kill();
+            // vm.stop();
             break;
     }
 });

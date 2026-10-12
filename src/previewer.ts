@@ -5,7 +5,7 @@ import { Message, ObjectState } from "./stage/messageTypes";
 import { basename, extname } from 'path';
 
 
-export default class Stage {
+export default class Previewer {
     private html: string;
     private webPanel: vscode.WebviewPanel;
     private projectPath?: vscode.Uri | null;
@@ -113,6 +113,18 @@ export default class Stage {
             type: "noProject",
         };
         panel.webview.postMessage(message);
+    }
+
+    public startProject() {
+        const panel = this.webPanel;
+
+        panel.webview.postMessage({type: "execute"})
+    }
+
+    public stopProject() {
+        const panel = this.webPanel;
+
+        panel.webview.postMessage({type: "kill"})
     }
 
     public async addSprite(name: string, withData?: ObjectState) {

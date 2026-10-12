@@ -1,9 +1,29 @@
-import { BaseBackdrop, BaseSprite, Workspace } from "./objects";
+import { BaseBackdrop, BaseSprite, BaseInstance } from "./objects";
+
+
+/** Host capabilities that are not owned by ItchyVM itself. */
+export interface ScratchServices {
+    targets?: ReadonlyMap<string, BaseInstance>;
+    stageElement?: HTMLElement;
+    /** Optional workspace integration; return the newly-created clone. */
+    createClone?: (target: BaseSprite) => BaseSprite;
+    deleteClone?: (target: BaseSprite) => void;
+    ask?: (question: string) => Promise<string> | string;
+    username?: () => string;
+    touchingColor?: (sprite: BaseSprite, color: string) => boolean;
+    colorTouchingColor?: (sprite: BaseSprite, color1: string, color2: string) => boolean;
+    bringToFront?: (target: BaseSprite) => void;
+    moveLayers?: (target: BaseSprite, direction: "forward" | "backward", amount: number) => void;
+    touchingObject?: (sprite1: BaseInstance, sprite2: BaseInstance) => boolean;
+}
 
 export interface ExecutionContext {
-    sprite?: BaseSprite
-    backdrop: BaseBackdrop
-};
+    sprite?: BaseSprite;
+    backdrop: BaseBackdrop;
+    /** Injected automatically by ItchyVM when a script is started. */
+    vm?: ItchyVM;
+    scratch?: ScratchServices
+}
 
 export interface Runtime {
     isKeyDown(key: string): boolean;
@@ -11,18 +31,18 @@ export interface Runtime {
     // other VM-facing operations scripts may need
 }
 
-type YieldInstruction = 
+export type YieldInstruction = 
     | {type: "waitOneFrame"}
     | {type: "wait"; seconds: number}
     | {type: "waitUntil"; condition: () => boolean}
     | {type: "waitingFor"; event: EventRun};
 
 
-type ThreadGenerator = Generator<YieldInstruction, void, unknown>;
+export type ThreadGenerator = Generator<YieldInstruction, void, unknown>;
 
 export type Script = (context: ExecutionContext) => ThreadGenerator;
 
-enum EventType {
+export enum EventType {
     KEY_STROKE,
     MESSAGE,
     GREEN_FLAG,
@@ -71,7 +91,7 @@ interface EventRegistration {
 // compare them by reference).
 type EventStore = Map<EventType, EventRegistration[]>;
 
-class EventRun {
+export class EventRun {
     // represents a singular event.
     public threads: Thread[] = [];
 
@@ -104,6 +124,7 @@ class Thread {
     private msPerTick: number;
 
     public childEvent?: EventRun;
+    public readonly sprite?: BaseSprite;
 
     public get status() {
         if (this.done) {
@@ -117,9 +138,10 @@ class Thread {
         return "running";
     }
 
-    constructor(generator: ThreadGenerator, msPerTick: number) {
+    constructor(generator: ThreadGenerator, msPerTick: number, sprite?: BaseSprite) {
         this.generator = generator;
         this.msPerTick = msPerTick;
+        this.sprite = sprite;
     }
 
     public kill() {
@@ -145,7 +167,9 @@ class Thread {
             case "waitUntil":
                 return this.yieldInstruction.condition();
             case "waitingFor":
-                return (this.childEvent && this.childEvent.isDone());
+                // The VM clears childEvent before resuming the parent. Checking
+                // that field here would therefore leave the parent stuck.
+                return this.yieldInstruction.event.isDone();
         }
     }
 
@@ -222,8 +246,11 @@ export class ItchyVM {
 
     private keysDown: Set<string> = new Set();
 
-    constructor(tickrate: number) {
+    public targets: ReadonlyMap<string, BaseInstance>;
+
+    constructor(tickrate: number, targetMap: Map<string, BaseInstance>) {
         // this.workspace = workspace;
+        this.targets = targetMap;
         this.msPerTick = (1 / tickrate) * 1000; 
 
         window.addEventListener("keydown", event => {
@@ -234,6 +261,10 @@ export class ItchyVM {
         window.addEventListener("keyup", event => {
             this.keysDown.delete(event.code);
         });
+    }
+
+    public isKeyDown(key: string): boolean {
+        return key === "any" ? this.keysDown.size > 0 : this.keysDown.has(key);
     }
 
     public registerEvent<T extends EventType>(
@@ -293,7 +324,8 @@ export class ItchyVM {
 
             const context: ExecutionContext = {
                 ...script.context,
-                sprite: instance
+                sprite: instance,
+                scratch: new ScratchServiceImplementation(this)
             };
 
             const thread = this.spawnScript(script, context);
@@ -318,14 +350,28 @@ export class ItchyVM {
     }
 
     private spawnScript(script: RegisteredScript, context: ExecutionContext = script.context) {
+        // Supply the running VM to every generated script automatically.
+        const runtimeContext: ExecutionContext = { ...context, vm: this, scratch: new ScratchServiceImplementation(this) };
         const thread = new Thread(
-            script.script(context),
-            this.msPerTick
+            script.script(runtimeContext),
+            this.msPerTick,
+            runtimeContext.sprite
         );
 
         this.threads.push(thread);
 
         return thread;
+    }
+
+    /** Stop all threads belonging to a specific sprite instance (including clones). */
+    public stopInstanceScripts(instance: BaseSprite) {
+        for (const thread of this.threads) {
+            if (thread.sprite === instance) thread.kill();
+        }
+    }
+
+    public start() {
+        this.fireGlobalEvent(EventType.GREEN_FLAG);
     }
 
     public stop() {
@@ -334,6 +380,12 @@ export class ItchyVM {
         });
     }
 
+    public async registerProgram(programFilePath: string) {
+        const module = await import(programFilePath);
+
+        const project: (vm: ItchyVM, eventType: typeof EventType) => {} = module.registerProject;
+        project(this, EventType);
+    }
 
     public step() {
         // create a copy of threads at the time of this step; 
@@ -397,4 +449,26 @@ export class ItchyVM {
             thread => thread.status !== "done"
         );
     }
+}
+
+
+class ScratchServiceImplementation implements ScratchServices {
+    private vm;
+    public targets: ReadonlyMap<string, BaseInstance>;
+
+    constructor(vm: ItchyVM) {
+        this.vm = vm;
+        this.targets = vm.targets;
+        // this.targets = vm.
+    }
+
+    public createClone(target: BaseSprite): BaseSprite {
+        return target.clone();
+    }
+
+    public username() {
+        return "";
+    }
+
+    // public deleteClone?: ((target: BaseSprite) => void) | undefined;
 }

@@ -21,7 +21,7 @@ suite('Extension Test Suite', () => {
 
 
 suite('VM Test Suite', () => {
-	const vm = new ItchyVM(30);
+	// const vm = new ItchyVM(30);
 
 	
 
