@@ -34,15 +34,32 @@ body {
     padding: 12px;
 }
 
+
+#monitors {
+    width: 20%;
+    height: 100vh;
+    padding: 6;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: grid;
+
+    align-content: flex-start;
+    
+}
+
+
 #editor {
-    width: 100%;
+    width: 80%;
     height: 100vh;
 
-    display: flex;
     flex-direction: column;
+    display: flex;
+    /* flex: auto; */
 
-    padding: 12px;
+    padding: 6px;
     min-width: 0;
+
+    order: 1;
 }
 
 #stage-pane {
@@ -111,7 +128,7 @@ body {
 
 /* container of all the editable values of a sprite */
 #sprite-properties {
-    flex: 2 1 0;
+    flex: 1 1 0;
     overflow-y: auto;
     justify-content: space-between;
 
