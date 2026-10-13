@@ -212,6 +212,19 @@ input:disabled {
     white-space: pre-wrap;
 }
 
+/* #variable-toggles {
+    flex: 1 0 1;
+    overflow-y: auto;
+    justify-content: space-between;
+
+    display: grid;
+    flex-wrap: wrap;
+
+    row-gap: 4px;
+
+    align-content: flex-start;
+    background: var(--vscode-sideBar-background);
+} */
 
 /* Speech/thought bubbles live directly under #stage-container, so they never
    rotate or grow with the sprite costume. */
