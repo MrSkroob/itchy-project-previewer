@@ -141,13 +141,23 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!stage) {
 				return;
 			}
-			// stage.run();
+			
+			stage.runProject();
 		}),
 
 		vscode.commands.registerCommand('itchy-project-previewer.stopProject', () => {
 			if (!stage) {
 				return;
 			}
+
+			stage.stopProject();
+		}),
+
+		vscode.commands.registerCommand('itchy-project-previwer.reloadPreviewer', async () => {
+			await vscode.commands.executeCommand('itchy-project-previewer.stopProject');
+			await vscode.commands.executeCommand('itchy-project-previewer.saveStage');
+			await vscode.commands.executeCommand('itchy-project-previewer.closePreviewer');
+			await vscode.commands.executeCommand('itchy-project-previewer.openPreviewer');
 		})
 	);
 }

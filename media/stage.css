@@ -38,7 +38,8 @@ body {
 #monitors {
     width: 20%;
     height: 100vh;
-    padding: 6;
+    padding: 6px;
+    /* margin: 4px; */
     overflow-x: hidden;
     overflow-y: auto;
     display: grid;
@@ -336,7 +337,7 @@ input:disabled {
 
 .variable-monitor {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     align-items: center;
     padding: 3px 5px 3px 8px;
 }

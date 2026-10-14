@@ -27,6 +27,10 @@
         "title": "Close Previewer"
       },
       {
+        "command": "itchy-project-previwer.reloadPreviewer",
+        "title": "Reload Previewer"
+      },
+      {
         "command": "itchy-project-previewer.saveStage",
         "title": "Save Stage"
       },

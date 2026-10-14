@@ -115,18 +115,6 @@ export default class Previewer {
         panel.webview.postMessage(message);
     }
 
-    public startProject() {
-        const panel = this.webPanel;
-
-        panel.webview.postMessage({type: "execute"})
-    }
-
-    public stopProject() {
-        const panel = this.webPanel;
-
-        panel.webview.postMessage({type: "kill"})
-    }
-
     public async addSprite(name: string, withData?: ObjectState) {
         if (!this.projectPath) {
             return;
@@ -171,6 +159,20 @@ export default class Previewer {
             }
         };
         panel.webview.postMessage(message);
+    }
+
+    public runProject() {
+        if (!this.projectPath) { return; }
+
+        this.webPanel.webview.postMessage(
+            { type: "execute", filePath: vscode.Uri.joinPath(this.projectPath, "output.js") }
+        );
+    }
+
+    public stopProject() {
+        this.webPanel.webview.postMessage(
+            { type: "kill" }
+        );
     }
 
     public removeAllSprites() {
