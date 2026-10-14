@@ -5,6 +5,13 @@ export interface Texture {
 };
 
 
+export interface VariableData {
+    name: string,
+    owner: string,
+    type: "list" | "variable"
+}
+
+
 export interface CachedTexture extends Texture {
     svgLevels?: WebGLTexture[];
 }
@@ -43,4 +50,5 @@ export interface Message {
     sprite?: SpriteData | null;
     stageState?: ObjectState[];
     filePath?: string;
+    variableData?: VariableData;
 };

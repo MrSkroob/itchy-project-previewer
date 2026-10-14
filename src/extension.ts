@@ -4,12 +4,10 @@ import * as vscode from 'vscode';
 // import * as commands from "./commands";
 import Previewer from "./previewer";
 import { watchSprites } from "./watcher";
-import { ObjectState } from './stage/messageTypes';
-
+import { ObjectState, VariableData } from './stage/messageTypes';
 
 let stage: Previewer | null = null;
 let watcher: vscode.FileSystemWatcher | null;
-
 
 function getStage(context: vscode.ExtensionContext) {
 	if (!stage || stage.isDisposed()) {
@@ -154,11 +152,21 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.commands.registerCommand('itchy-project-previwer.reloadPreviewer', async () => {
-			await vscode.commands.executeCommand('itchy-project-previewer.stopProject');
+			vscode.commands.executeCommand('itchy-project-previewer.stopProject');
 			await vscode.commands.executeCommand('itchy-project-previewer.saveStage');
 			await vscode.commands.executeCommand('itchy-project-previewer.closePreviewer');
 			await vscode.commands.executeCommand('itchy-project-previewer.openPreviewer');
-		})
+		}),
+
+		vscode.commands.registerCommand(
+            "itchy-previewer.updateVariables",
+            (data: VariableData[]) => {
+                console.log("Received variables:", data);
+
+                // Handle the update here
+                // updateVariableMonitors(data);
+            }
+        )
 	);
 }
 

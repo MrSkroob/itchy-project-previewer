@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from "fs";
 // import * as path from "path";
-import { Message, ObjectState } from "./stage/messageTypes";
+import { Message, ObjectState, VariableData } from "./stage/messageTypes";
 import { basename, extname } from 'path';
 
 
@@ -97,6 +97,10 @@ export default class Previewer {
         this.webPanel.onDidDispose(() => {
             this.disposed = true;
         });
+    }
+
+    public updateVariables(data: VariableData[]) {
+        this.webPanel.webview.postMessage( { type: "updateVars", data: data } )
     }
 
     public setProjectPath(projectPath?: vscode.Uri | null) {
