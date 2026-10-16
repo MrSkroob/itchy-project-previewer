@@ -12,7 +12,7 @@ const COPY_ICON =
 const CHECK_ICON =
     "M6.27 10.87 2.7 7.3l1.06-1.06 2.51 2.51 5.97-5.97L13.3 3.84z";
 
-function cloneTemplate(template: HTMLTemplateElement) {
+export function cloneTemplate(template: HTMLTemplateElement) {
     return (template.content
         .cloneNode(true) as DocumentFragment)
         .firstElementChild as HTMLElement | null;
@@ -474,12 +474,5 @@ export class PropertyViewer {
         }
 
         this.codeSpaceViewer.setValue(this.property.property, value);
-    }
-}
-
-
-export class VariableViewer {
-    constructor(parent: HTMLElement, template: HTMLTemplateElement, ) {
-        const node = cloneTemplate(template);
     }
 }

@@ -21,7 +21,7 @@
                 >
                 </canvas>
                 <div class="variable-monitor-layer">
-                    <div class="variable-monitor">
+                    <!-- <div class="variable-monitor">
                         <label class="monitor-name">Variable</label>
                         <label class="monitor-value">100</label>
                     </div>
@@ -30,7 +30,7 @@
                         <label class="monitor-name">do you want</label>
                         <ul class="monitor-list-entries">one dollar</ul>
                         <ul class="monitor-list-entries">two dollar</ul>
-                    </div>
+                    </div> -->
                 </div>
             </div>
 
@@ -65,8 +65,10 @@
         </template>
 
         <template id="variable-toggle">
-            <label></label>
-            <input type="checkbox">
+            <div class="variable-toggle">
+                <label></label>
+                <input type="checkbox">
+            </div>
         </template>
 
         <div id="sprite-editor">
@@ -81,7 +83,11 @@
         </div>
     </div>
     <div id="monitors" class="editor-group">
-        <div>
+        <div class="variable-toggle">
+            <label>you are very smelly!</label>
+            <input type="checkbox">
+        </div>
+        <!-- <div>
             <span class="property-name">variable</span>
             <span class="property-input">
                 <input type="checkbox">
@@ -92,7 +98,7 @@
             <span class="property-input">
                 <input type="checkbox">
             </span>
-        </div>
+        </div> -->
     </div>
     
     <script src="{{JS_URI}}"></script>

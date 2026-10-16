@@ -421,8 +421,6 @@ export class SpriteRenderer {
         flipped: boolean
     ) {
         const [texture, _] = this.selectTexture(image, scale);
-        // const [texture, _] = this.selectTexture(image, scale);
-        // console.log(texture);
 
         const matrix = this.getMatrix(
             image,

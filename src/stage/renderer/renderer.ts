@@ -91,8 +91,6 @@ export class Drawable {
 
 
     public setRotation(rotation: number) {
-        console.log(rotation);
-
         rotation = rotation % 360
 
         this._rotation = rotation;
@@ -178,8 +176,6 @@ export class Renderer {
             default:
                 break;
         }
-
-        // console.log(drawable.rotationStyle);
 
         this.renderer.drawImage(
             image, 

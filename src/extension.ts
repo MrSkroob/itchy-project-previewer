@@ -5,6 +5,8 @@ import * as vscode from 'vscode';
 import Previewer from "./previewer";
 import { watchSprites } from "./watcher";
 import { ObjectState, VariableData } from './stage/messageTypes';
+import * as fs from 'fs';
+// import { json } from 'stream/consumers';
 
 let stage: Previewer | null = null;
 let watcher: vscode.FileSystemWatcher | null;
@@ -77,6 +79,13 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 			stage.addSprite(name);
 		}
 	}
+
+	fs.readFile(vscode.Uri.joinPath(projectPath, "project-variables.json").fsPath, {encoding: 'utf-8'}, (err, data) => {
+		if (err) { throw err;}
+		const jsonData = JSON.parse(data);
+		if (!stage) { return; }
+		stage.updateVariables(jsonData);
+	})
 }
 
 
@@ -158,13 +167,14 @@ export function activate(context: vscode.ExtensionContext) {
 			await vscode.commands.executeCommand('itchy-project-previewer.openPreviewer');
 		}),
 
+		// TODO: test this actually works
 		vscode.commands.registerCommand(
             "itchy-previewer.updateVariables",
             (data: VariableData[]) => {
-                console.log("Received variables:", data);
-
-                // Handle the update here
-                // updateVariableMonitors(data);
+				if (!stage) {
+					return;
+				}
+				stage.updateVariables(data);
             }
         )
 	);

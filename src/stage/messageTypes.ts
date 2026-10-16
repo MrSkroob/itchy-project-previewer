@@ -8,7 +8,10 @@ export interface Texture {
 export interface VariableData {
     name: string,
     owner: string,
-    type: "list" | "variable"
+    type: "list" | "variable",
+    visible: boolean,
+    x?: number,
+    y?: number
 }
 
 
@@ -42,6 +45,7 @@ export interface ObjectState {
     layer: number;
     rotation: number;
     rotationStyle: string;
+    variableState: [string, VariableData][];
 };
 
 
@@ -50,5 +54,5 @@ export interface Message {
     sprite?: SpriteData | null;
     stageState?: ObjectState[];
     filePath?: string;
-    variableData?: VariableData;
+    variableData?: VariableData[];
 };

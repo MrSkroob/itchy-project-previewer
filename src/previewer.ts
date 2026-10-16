@@ -100,7 +100,7 @@ export default class Previewer {
     }
 
     public updateVariables(data: VariableData[]) {
-        this.webPanel.webview.postMessage( { type: "updateVars", data: data } )
+        this.webPanel.webview.postMessage( { type: "updateVars", variableData: data } )
     }
 
     public setProjectPath(projectPath?: vscode.Uri | null) {
@@ -118,7 +118,7 @@ export default class Previewer {
         };
         panel.webview.postMessage(message);
     }
-
+    
     public async addSprite(name: string, withData?: ObjectState) {
         if (!this.projectPath) {
             return;
@@ -144,7 +144,7 @@ export default class Previewer {
         const message: Message = {
             type: "addSprite",
             sprite: {
-                name: name,
+                name: name.toLowerCase(),
                 costumes: costumes,
                 data: withData
             },

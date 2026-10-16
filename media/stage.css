@@ -39,14 +39,16 @@ body {
     width: 20%;
     height: 100vh;
     padding: 6px;
-    /* margin: 4px; */
     overflow-x: hidden;
     overflow-y: auto;
-    display: grid;
 
-    align-content: flex-start;
-    
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
 }
+
 
 
 #editor {
@@ -114,17 +116,18 @@ body {
 }
 
 /* Sprite coordinates refer to the sprite's centre. */
-.sprite {
+/* these do not do anything; the sprite rendering was converted into webgl */
+/* .sprite {
     position: absolute;
     transform: translate(-50%, -50%);
-}
+} */
 
-.sprite img {
+/* .sprite img {
     display: block;
 
     max-width: none;
     max-height: none;
-}
+} */
 
 
 /* container of all the editable values of a sprite */
@@ -230,20 +233,24 @@ input:disabled {
     white-space: pre-wrap;
 }
 
-/* #variable-toggles {
-    flex: 1 0 1;
-    overflow-y: auto;
+.variable-toggle {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
 
-    display: grid;
-    flex-wrap: wrap;
+.variable-toggle label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
 
-    row-gap: 4px;
-
-    align-content: flex-start;
-    background: var(--vscode-sideBar-background);
-} */
-
+.variable-toggle input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
+}
 /* Speech/thought bubbles live directly under #stage-container, so they never
    rotate or grow with the sprite costume. */
 .speech-bubble {
@@ -331,8 +338,27 @@ input:disabled {
     border: 1px solid #ccc;
     border-radius: 5px;
     box-shadow: 0 1px 3px #0002;
+    width: max-content;
     max-width: 220px;
+    pointer-events: all;
+    /* pointer-events: auto; */
+    position: absolute;
+    /* transform: translate(-50%, -50%); */
+
     pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+}
+
+.variable-monitor[hidden],
+.list-monitor[hidden] {
+    display: none;
+}
+
+.variable-monitor:active,
+.list-monitor:active {
+    cursor: grabbing;
 }
 
 .variable-monitor {
@@ -364,6 +390,7 @@ input:disabled {
     flex-direction: column;
     min-width: 130px;
     max-height: min(200px, calc(100% - 8px));
+    scroll-behavior: auto;
     padding: 5px 8px;
 }
 

@@ -1,4 +1,4 @@
-import { Message, SpriteData, ObjectState } from "./messageTypes";
+import { Message, SpriteData, ObjectState, VariableData } from "./messageTypes";
 import { BaseSprite, BaseBackdrop, BaseInstance, Workspace } from "./vm/objects";
 // import { ItchyVM } from "./vm/itchyVM";
 import { Renderer } from "./renderer/renderer";
@@ -211,8 +211,25 @@ export class Stage implements Workspace {
         this.addViewers(properties);
     }
 
-    public registerProgram() {
-        
+    public updateVariables(data: VariableData[]) {
+        data = data.filter((value) => {
+            return !value.name.includes(":")
+        })
+
+        this.sprites.forEach((sprite) => {
+            sprite.updateVariableRegistry(data);
+        })
+
+        data.forEach(element => {
+            const sprite = this.sprites.get(element.owner);
+            if (!sprite) { return; }
+
+            if (element.type === "list") {
+                sprite.setVariable(element.name, []);
+            } else {
+                sprite.setVariable(element.name, 0);
+            }
+        });
     }
 
     public prepareRuntime() {
@@ -226,12 +243,6 @@ export class Stage implements Workspace {
             }
         );
         this.targetViewers();
-    }
-
-    public restoreFromRuntime() {
-        this.savedSpriteEdits.forEach((data, sprite) => {
-            sprite.fromJSON(data);
-        });
     }
 
     public targetViewers(sprite?: BaseInstance) {
@@ -447,7 +458,6 @@ export class Stage implements Workspace {
 
         // Render the latest state.
         this.renderer.render(this.spriteOrder);
-        // console.log("Render");
 
         requestAnimationFrame(this.renderLoop);
     }
@@ -497,7 +507,8 @@ window.addEventListener("message", event => {
 
     switch (message.type) {
         case "addSprite":
-            if (message.sprite!.name.toLowerCase() !== "stage") {
+            // tolower 
+            if (message.sprite!.name !== "stage") {
                 workspace.addSprite(message.sprite!);
             } else {
                 workspace.setBackdrop(message.sprite!);
@@ -511,11 +522,9 @@ window.addEventListener("message", event => {
         case "removeAllSprites":
             workspace.removeAllSprites();
             break;
-
         case "noProject":
             showNoProject();
             break;
-            
         case "requestSaveData":
             workspace.exportSpriteData();
             break;
@@ -528,6 +537,10 @@ window.addEventListener("message", event => {
         case "kill":
             workspace.kill();
             // vm.stop();
+            break;
+        case "updateVars":
+            const data = message.variableData;
+            workspace.updateVariables(data!);
             break;
     }
 });
