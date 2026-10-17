@@ -95,7 +95,11 @@ export abstract class Monitor {
 
         this.visibilityToggle = visibilityToggle;
 
-        const monitorToggleLayer = document.querySelector("#monitors") as HTMLDivElement;
+        if (!funkyColour) {
+            visibilityToggle.style.background = "var(--vscode-list-hoverBackground)";
+        }
+
+        const monitorToggleLayer = document.querySelector("#monitor-toggles") as HTMLDivElement;
         monitorToggleLayer.appendChild(visibilityToggle);
 
         // create visibility toggle
@@ -264,6 +268,7 @@ class MonitorFactory {
         
         nameEntry.textContent = MonitorFactory.getDisplayName(data);
 
+        element.style.order = String(MonitorFactory.counter);
         element.appendChild(nameEntry);
 
         switch (monitorType) {
@@ -466,11 +471,10 @@ export class BaseInstance extends Drawable {
                 name: element.name,
                 owner: element.owner!.name,
                 type: element instanceof ListMonitor ? "list" : "variable",
-                visible: element.hidden,
+                visible: !element.hidden,
                 x: element.getX(),
                 y: element.getY()
             });
-            console.log(element.name);
         });
 
         return Array.from(variableData.entries());
@@ -483,7 +487,9 @@ export class BaseInstance extends Drawable {
         }
         // bare {} means this code crashes. for now we create another map
         // this is yucky; we ideally would have a reviver, but oh well.
-        const mappedData = new Map<string, VariableData>(data);
+        const mappedData = new Map<string, VariableData>(
+            [...data].sort((a, b) => a[1].name.localeCompare(b[1].name))
+        );
         mappedData.forEach(element => {
             let existingData = this.variableData.get(element.name);
             if (existingData) {

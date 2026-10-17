@@ -201,7 +201,13 @@ export class Renderer {
         const drawable = this.drawables.get(id);
         
         for (const costume of drawable!.costumes) {
-            this.gl.deleteTexture(costume);
+            if (!costume.texture) { continue; }
+            this.gl.deleteTexture(costume.texture.texture);
+
+            if (!costume.texture.svgLevels) { continue; }
+            costume.texture.svgLevels.forEach(element => {
+                this.gl.deleteTexture(element);
+            });
         }
 
         this.drawables.delete(id);

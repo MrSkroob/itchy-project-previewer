@@ -19,6 +19,33 @@ function getStage(context: vscode.ExtensionContext) {
 }
 
 
+function mergeVariableState(
+    owner: string,
+    variables: VariableData[],
+    savedState?: ObjectState
+): NonNullable<ObjectState["variableState"]> {
+    const savedVariables = new Map(savedState?.variableState ?? []);
+
+    return variables
+        .filter(variable => variable.owner === owner)
+        .map(variable => {
+            const saved = savedVariables.get(variable.name);
+
+            return [
+                variable.name,
+                {
+                    name: variable.name,
+                    owner: variable.owner,
+                    type: variable.type,
+                    visible: saved?.visible ?? false,
+                    x: saved?.x ?? -230,
+                    y: saved?.y ?? 170
+                }
+            ];
+        });
+}
+
+
 function getProjectPath() {
     const folders = vscode.workspace.workspaceFolders;
 
@@ -47,6 +74,14 @@ function getProjectPath() {
 
 
 async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
+	const contents = await vscode.workspace.fs.readFile(
+		vscode.Uri.joinPath(projectPath, "project-variables.json")
+	);
+
+	const variables: VariableData[] = JSON.parse(
+		new TextDecoder().decode(contents)
+	);
+
 	stage.removeAllSprites();
 
 	if (!watcher) {
@@ -54,10 +89,12 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 	}
 
 	const entries = await vscode.workspace.fs.readDirectory(projectPath);
-	for (const [name, type] of entries) {
+	for (const [_name, type] of entries) {
 		if (type !== vscode.FileType.Directory) {
 			continue;
 		}
+
+		const name = _name.toLowerCase();
 
 		const spritePath = vscode.Uri.joinPath(projectPath, name);
 		const children = await vscode.workspace.fs.readDirectory(spritePath);
@@ -73,6 +110,9 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 		}
 		
 		if (data) {
+			if (!data[name].variableState) {
+				data[name].variableState = mergeVariableState(name, variables, data[name]);
+			}
 			stage.addSprite(name, data[name]);
 		}
 		else {
@@ -80,12 +120,12 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 		}
 	}
 
-	fs.readFile(vscode.Uri.joinPath(projectPath, "project-variables.json").fsPath, {encoding: 'utf-8'}, (err, data) => {
-		if (err) { throw err;}
-		const jsonData = JSON.parse(data);
-		if (!stage) { return; }
-		stage.updateVariables(jsonData);
-	})
+	// fs.readFile(vscode.Uri.joinPath(projectPath, "project-variables.json").fsPath, {encoding: 'utf-8'}, (err, data) => {
+	// 	if (err) { throw err;}
+	// 	const jsonData = JSON.parse(data);
+	// 	if (!stage) { return; }
+	// 	stage.updateVariables(jsonData);
+	// })
 }
 
 

@@ -1,4 +1,4 @@
-import { BaseBackdrop, BaseSprite, BaseInstance } from "./objects";
+import { BaseBackdrop, BaseSprite, BaseInstance } from "./objects.js";
 
 
 /** Host capabilities that are not owned by ItchyVM itself. */
@@ -381,6 +381,7 @@ export class ItchyVM {
     }
 
     public async registerProgram(programFilePath: string) {
+        console.log("Loading: " + programFilePath);
         const module = await import(programFilePath);
 
         const project: (vm: ItchyVM, eventType: typeof EventType) => {} = module.registerProject;

@@ -5,6 +5,32 @@ import { Message, ObjectState, VariableData } from "./stage/messageTypes";
 import { basename, extname } from 'path';
 
 
+const PLACEHOLDER = "'__ITCHY_PREVIEWER_SCRATCH_BLOCKS__'";
+const jsLibPath = vscode.Uri.joinPath(vscode.Uri.file(__dirname),
+                "stage",
+                "vm",
+                "scratchBlocks.js"
+            );
+
+async function patchImports(
+    fileUri: vscode.Uri,
+    moduleUri: string
+) {
+    const contents = await vscode.workspace.fs.readFile(fileUri);
+    const code = new TextDecoder().decode(contents);
+
+    const modified = code.replace(
+        PLACEHOLDER,
+        JSON.stringify(moduleUri)
+    );
+
+    await vscode.workspace.fs.writeFile(
+        fileUri,
+        new TextEncoder().encode(modified)
+    );
+}
+
+
 export default class Previewer {
     private html: string;
     private webPanel: vscode.WebviewPanel;
@@ -26,6 +52,11 @@ export default class Previewer {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
+                localResourceRoots: [
+                    context.extensionUri,
+                    ...(vscode.workspace.workspaceFolders?.map(folder => folder.uri) ?? []),
+                    jsLibPath
+                ]
             }
         );
         this.html = this.getTemplate(this.webPanel.webview, extensionUri);
@@ -118,6 +149,10 @@ export default class Previewer {
         };
         panel.webview.postMessage(message);
     }
+
+    private convertURIToFSPath(uri: vscode.Uri) {
+        return this.webPanel.webview.asWebviewUri(uri).toString()
+    }
     
     public async addSprite(name: string, withData?: ObjectState) {
         if (!this.projectPath) {
@@ -134,7 +169,7 @@ export default class Previewer {
             const fileUri = vscode.Uri.joinPath(costumesPath, filename);
             return {
                 name: basename(fileUri.fsPath, extname(fileUri.fsPath)),
-                fsPath: panel.webview.asWebviewUri(fileUri).toString(),
+                fsPath: this.convertURIToFSPath(fileUri),
                 extension: extname(fileUri.fsPath)
             };
         });
@@ -165,11 +200,12 @@ export default class Previewer {
         panel.webview.postMessage(message);
     }
 
-    public runProject() {
+    public async runProject() {
         if (!this.projectPath) { return; }
-
+        const outputPath = vscode.Uri.joinPath(this.projectPath, "output.js")
+        await patchImports(outputPath, this.convertURIToFSPath(jsLibPath))
         this.webPanel.webview.postMessage(
-            { type: "execute", filePath: vscode.Uri.joinPath(this.projectPath, "output.js") }
+            { type: "execute", filePath: this.convertURIToFSPath(outputPath) } as Message
         );
     }
 

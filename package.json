@@ -20,27 +20,27 @@
     "commands": [
       {
         "command": "itchy-project-previewer.openPreviewer",
-        "title": "Open Previewer"
+        "title": "Itchy Project Viewer: Open Previewer"
       },
       {
         "command": "itchy-project-previewer.closePreviewer",
-        "title": "Close Previewer"
+        "title": "Itchy Project Viewer: Close Previewer"
       },
       {
         "command": "itchy-project-previwer.reloadPreviewer",
-        "title": "Reload Previewer"
+        "title": "Itchy Project Viewer: Reload Previewer"
       },
       {
         "command": "itchy-project-previewer.saveStage",
-        "title": "Save Stage"
+        "title": "Itchy Project Viewer: Save Stage"
       },
       {
         "command": "itchy-project-previewer.runProject",
-        "title": "Run"
+        "title": "Itchy Project Viewer: Run"
       },
       {
         "command": "itchy-project-previewer.stopProject",
-        "title": "Stop"
+        "title": "Itchy Project Viewer: Stop"
       }
     ],
     "keybindings": [
