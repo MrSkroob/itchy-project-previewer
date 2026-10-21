@@ -75,7 +75,7 @@ function getProjectPath() {
 
 async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
 	let contents;
-	let variables = [];
+	let variables: VariableData[] = [];
 	try {
 		contents = await vscode.workspace.fs.readFile(
 			vscode.Uri.joinPath(projectPath, "project-variables.json")
@@ -83,6 +83,7 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 		variables = JSON.parse(
 			new TextDecoder().decode(contents)
 		);
+		// stage.updateVariables(variables);
 	} catch(error) {
 		console.log(error);
 	}
@@ -115,13 +116,23 @@ async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k
 		}
 		
 		if (data) {
-			if (!data[name].variableState) {
-				data[name].variableState = mergeVariableState(name, variables, data[name]);
-			}
+			data[name].variableState = mergeVariableState(name, variables, data[name]);
 			stage.addSprite(name, data[name]);
 		}
 		else {
-			stage.addSprite(name);
+			const tempData: ObjectState = {
+				name: name,
+				costumeNumber: 0,
+				visible: true,
+				size: 100,
+				x: 0,
+				y: 0, 
+				layer: 1,
+				rotation: 90,
+				rotationStyle: "all-around",
+				variableState: mergeVariableState(name, variables)
+			}
+			stage.addSprite(name, tempData);
 		}
 	}
 
