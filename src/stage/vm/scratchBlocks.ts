@@ -551,23 +551,23 @@ export function operator_mathop(_context: ExecutionContext, operation: Value, in
 // --------------------------------------------------------------------------
 
 function variableOwner(context: ExecutionContext, name: string): BaseInstance {
-    if (context.sprite?.variables.has(name)) return context.sprite;
-    if (context.backdrop.variables.has(name)) return context.backdrop;
+    if (context.sprite?.monitors.has(name)) return context.sprite;
+    if (context.backdrop.monitors.has(name)) return context.backdrop;
     return instance(context);
 }
 
 export function data_variable(context: ExecutionContext, name: Value): Value {
-    return variableOwner(context, string(name)).variables.get(string(name)) ?? 0;
+    return variableOwner(context, string(name)).monitors.get(string(name)) ?? 0;
 }
 
 export function* data_setvariableto(context: ExecutionContext, name: Value, value: Value): ThreadGenerator {
-    variableOwner(context, string(name)).setVariable(string(name), value);
+    variableOwner(context, string(name)).addVariable(string(name), value);
 }
 
 export function* data_changevariableby(context: ExecutionContext, name: Value, delta: Value): ThreadGenerator {
     const owner = variableOwner(context, string(name));
-    const old = owner.variables.get(string(name));
-    owner.setVariable(string(name), number(old) + number(delta));
+    const old = owner.monitors.get(string(name));
+    owner.monitors.get(name as string)?.setValue(number(old) + number(delta));
 }
 
 function list(context: ExecutionContext, name: Value): ListValue {
@@ -575,7 +575,7 @@ function list(context: ExecutionContext, name: Value): ListValue {
     const current = owner.variables.get(string(name));
     if (Array.isArray(current)) return current;
     const result: ListValue = [];
-    owner.setVariable(string(name), result);
+    owner.addVariable(string(name), result);
     return result;
 }
 

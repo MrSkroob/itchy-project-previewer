@@ -74,13 +74,18 @@ function getProjectPath() {
 
 
 async function updateStage(stage: Previewer, projectPath: vscode.Uri, data?: {[k: string]: ObjectState}) {
-	const contents = await vscode.workspace.fs.readFile(
-		vscode.Uri.joinPath(projectPath, "project-variables.json")
-	);
-
-	const variables: VariableData[] = JSON.parse(
-		new TextDecoder().decode(contents)
-	);
+	let contents;
+	let variables = [];
+	try {
+		contents = await vscode.workspace.fs.readFile(
+			vscode.Uri.joinPath(projectPath, "project-variables.json")
+		);
+		variables = JSON.parse(
+			new TextDecoder().decode(contents)
+		);
+	} catch(error) {
+		console.log(error);
+	}
 
 	stage.removeAllSprites();
 
@@ -143,13 +148,14 @@ async function openPreviewer(context: vscode.ExtensionContext) {
 		stage.showNoProject();
 	} else {
 
-		let data: {[k: string]: ObjectState} = {};
+		let data: {[k: string]: ObjectState} | undefined = {};
 		try {
 			const file = vscode.Uri.joinPath(projectPath, "project-previewer.json");
 			const stringData = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
 			data = JSON.parse(stringData);
 		} catch(error) {
 			console.log(error);
+			data = undefined;
 		}
 
 		await updateStage(stage, projectPath, data);

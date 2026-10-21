@@ -225,9 +225,9 @@ export class Stage implements Workspace {
             if (!sprite) { return; }
 
             if (element.type === "list") {
-                sprite.setVariable(element.name, []);
+                sprite.addList(element.name);
             } else {
-                sprite.setVariable(element.name, 0);
+                sprite.addVariable(element.name);
             }
         });
     }
