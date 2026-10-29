@@ -37,15 +37,6 @@ if (!glLoad) {
 const gl = glLoad;
 
 
-enum ExecutionMode {
-    EDIT_TIME,
-    RUN_TIME
-}
-
-// type ExecutionMode = 
-//     | "edittime" // code execution does not occur; you can drag sprites around
-//     | "runtime" // code execution mode; cannot edit sprites during runtime.
-
 class Backdrop extends BaseBackdrop {
     private parent: Stage;
 
@@ -171,7 +162,7 @@ export class Stage implements Workspace {
     constructor(stageHTML: HTMLElement) {
         // Generating HTML for sprite properties
         this.stageHTML = stageHTML;
-        this.vm = new ItchyVM(TICK_RATE, this.sprites);
+        this.vm = new ItchyVM(TICK_RATE, this.sprites, this.spriteOrder);
         const properties: PropertyDefinition[] = [
             { property: "name", label: "Instance", kind: "string", options: [/* purposely left blank: to be filled in */], global: true},
             { property: "x", label: "X", kind: "number"},
@@ -328,7 +319,7 @@ export class Stage implements Workspace {
 
         this.spriteCount -= 1;
 
-        this.renderer.removeDrawable(name);
+        this.renderer.removeDrawable(sprite.name);
 
         this.prevState.delete(name);
 
@@ -392,7 +383,7 @@ export class Stage implements Workspace {
         this.rebuildViewers();
         this.updateLayers();
 
-        await this.renderer.addDrawable(backdropData.name, this.backdrop);
+        await this.renderer.addDrawable(backdrop.name, this.backdrop);
         // this.renderer.render(this.spriteOrder);
     }
 
@@ -462,10 +453,22 @@ export class Stage implements Workspace {
         requestAnimationFrame(this.renderLoop);
     }
 
-    public execute(filePath: string) {
+    public async execute(filePath: string) {
         // runs the ... runtime
+
+        // console.log("Importing:", filePath);
+
+        // const response = await fetch(filePath);
+
+        // console.log("Status:", response.status);
+        // console.log("Content-Type:", response.headers.get("content-type"));
+
+        // if (response.ok) {
+        //     console.log("Contents:", (await response.text()).slice(0, 500));
+        // }
+
         this.running = true;        
-        this.vm.registerProgram(filePath);
+        await this.vm.registerProgram(filePath);
         this.vm.start();
 
         this.lastTime = undefined;

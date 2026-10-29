@@ -5,31 +5,11 @@ import { Message, ObjectState, VariableData } from "./stage/messageTypes";
 import { basename, extname } from 'path';
 
 
-const PLACEHOLDER = "'__ITCHY_PREVIEWER_SCRATCH_BLOCKS__'";
 const jsLibPath = vscode.Uri.joinPath(vscode.Uri.file(__dirname),
                 "stage",
                 "vm",
                 "scratchBlocks.js"
             );
-
-async function patchImports(
-    fileUri: vscode.Uri,
-    moduleUri: string
-) {
-    const contents = await vscode.workspace.fs.readFile(fileUri);
-    const code = new TextDecoder().decode(contents);
-
-    const modified = code.replace(
-        PLACEHOLDER,
-        JSON.stringify(moduleUri)
-    );
-
-    await vscode.workspace.fs.writeFile(
-        fileUri,
-        new TextEncoder().encode(modified)
-    );
-}
-
 
 export default class Previewer {
     private html: string;
@@ -203,7 +183,7 @@ export default class Previewer {
     public async runProject() {
         if (!this.projectPath) { return; }
         const outputPath = vscode.Uri.joinPath(this.projectPath, "output.js")
-        await patchImports(outputPath, this.convertURIToFSPath(jsLibPath))
+
         this.webPanel.webview.postMessage(
             { type: "execute", filePath: this.convertURIToFSPath(outputPath) } as Message
         );

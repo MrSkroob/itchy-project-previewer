@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import Previewer from "./previewer";
 import { watchSprites } from "./watcher";
 import { ObjectState, VariableData } from './stage/messageTypes';
-import * as fs from 'fs';
+// import * as fs from 'fs';
 // import { json } from 'stream/consumers';
 
 let stage: Previewer | null = null;
@@ -180,14 +180,16 @@ export function activate(context: vscode.ExtensionContext) {
 	// load commands
 	context.subscriptions.push(
 		vscode.commands.registerCommand('itchy-project-previewer.openPreviewer', async () => {
-			openPreviewer(context);
+			await openPreviewer(context);
 		}),
 
 		vscode.commands.registerCommand("itchy-project-previewer.closePreviewer", () => {
 			if (!stage || stage.isDisposed()) {
 				return;
 			}
+			stage.stopProject();
 			stage.getWebPanel().dispose();
+			stage = null;
 			if (watcher) {
 				watcher.dispose();
 				watcher = null;
@@ -195,14 +197,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.commands.registerCommand('itchy-project-previewer.saveStage', () => {
-			if (!stage) {
+			if (!stage || stage.isDisposed()) {
 				return;
 			}
 			stage.save();
 		}),
 
 		vscode.commands.registerCommand('itchy-project-previewer.runProject', () => {
-			if (!stage) {
+			if (!stage || stage.isDisposed()) {
 				return;
 			}
 			
@@ -210,7 +212,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 
 		vscode.commands.registerCommand('itchy-project-previewer.stopProject', () => {
-			if (!stage) {
+			if (!stage || stage.isDisposed()) {
 				return;
 			}
 
@@ -219,7 +221,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 		vscode.commands.registerCommand('itchy-project-previwer.reloadPreviewer', async () => {
 			vscode.commands.executeCommand('itchy-project-previewer.stopProject');
-			await vscode.commands.executeCommand('itchy-project-previewer.saveStage');
 			await vscode.commands.executeCommand('itchy-project-previewer.closePreviewer');
 			await vscode.commands.executeCommand('itchy-project-previewer.openPreviewer');
 		}),
@@ -228,7 +229,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(
             "itchy-previewer.updateVariables",
             (data: VariableData[]) => {
-				if (!stage) {
+				if (!stage || stage.isDisposed()) {
 					return;
 				}
 				stage.updateVariables(data);

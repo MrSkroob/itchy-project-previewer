@@ -65,6 +65,7 @@ export abstract class Monitor {
         // if (funkyColour) {
         //     element.style.background = "var(--vscode-sideBar-background)";
         // }
+        this.hidden = !data.visible;
 
         if (element && stage) {     
             const monitorLayer = stage.querySelector(
@@ -89,7 +90,6 @@ export abstract class Monitor {
             visibilityToggle.querySelector("label")!.textContent = MonitorFactory.getDisplayName(data);
             visibilityToggle.querySelector("input")!.checked = data.visible;
 
-            this.hidden = !data.visible;
             element.hidden = !data.visible;
 
             this.visibilityToggle = visibilityToggle;
@@ -115,6 +115,10 @@ export abstract class Monitor {
         }
     }
 
+    public isList() {
+        return false;
+    }
+
     private onChange = (_: Event) => {
         if (!this.element) {
             return;
@@ -124,6 +128,7 @@ export abstract class Monitor {
     }
 
     abstract setValue(value: any): void
+    abstract getValue(): any
 
     private pointerToScratch(event: PointerEvent) {
         if (!this.stageHTML) {
@@ -193,10 +198,14 @@ export abstract class Monitor {
     };
 
     public updatePosition() {
-        this.element!.style.left =
+        if (!this.element) {
+            return;
+        }
+        
+        this.element.style.left =
             `${this.x + STAGE_WIDTH / 2}px`;
 
-        this.element!.style.top =
+        this.element.style.top =
             `${STAGE_HEIGHT / 2 - this.y}px`;
     }
 
@@ -209,6 +218,7 @@ export abstract class Monitor {
     }
 
     public setVisible(){
+        if (!this.element) { return; }
         this.element!.hidden = this.hidden;
     }
 
@@ -236,6 +246,10 @@ export class VariableMonitor extends Monitor {
         this.valueHTML = this.element.querySelector(".monitor-value") as HTMLLabelElement;
     }
 
+    public getValue() {
+        return this.value;
+    }
+
     public setValue(value: any) {
         this.value = value;
         if (!this.valueHTML) { return; }
@@ -258,15 +272,21 @@ export class ListMonitor extends Monitor {
         if (!this.element) { return; }
     }
 
+    public override isList() {
+        return true;
+    }
+
+    public getValue() {
+        return this.items;
+    }
+
     public setValue(value: any[]) {
         // this.items = value;
         this.clear();
 
-        if (this.element) {
-            value.forEach(element => {
-                this.append(element);
-            });
-        }
+        value.forEach(element => {
+            this.append(element);
+        });
     }
 
     public append(value: any) {
@@ -303,9 +323,19 @@ export class ListMonitor extends Monitor {
     }
 
     public replace(value: any, index: number) {
-        this.items[index - 1] = value;
+        index -= 1;
+
+        if (index >= this.items.length) { 
+            return;
+        }
+
+        if (index < 0) {
+            return;
+        }
+
+        this.items[index] = value;
         if (!this.element) { return; }
-        this.entries[index - 1].textContent = String(value);
+        this.entries[index].textContent = String(value);
     }
 }
 
@@ -337,10 +367,9 @@ class MonitorFactory {
         owner: BaseInstance, 
         data: VariableData) {
 
-        MonitorFactory.counter += 1;
         let element = null;
 
-        if (stage) {
+        if (stage && !owner.isClone) {
             element = document.createElement("div") as HTMLDivElement;
             const nameEntry = document.createElement("label");
             nameEntry.className = "monitor-name";
@@ -349,6 +378,8 @@ class MonitorFactory {
 
             element.style.order = String(MonitorFactory.counter);
             element.appendChild(nameEntry);
+
+            MonitorFactory.counter += 1;
         }
 
         switch (monitorType) {
@@ -398,7 +429,7 @@ export interface Workspace {
 export class BaseInstance extends Drawable {
     public isClone?: boolean;
 
-    public monitors: Map<String, Monitor> = new Map();
+    public monitors: Map<string, Monitor> = new Map();
     protected _name: string;
 
     protected sprite: HTMLDivElement;
@@ -408,14 +439,12 @@ export class BaseInstance extends Drawable {
     protected variableData: Map<string, VariableData> = new Map();
 
     public updateVariableRegistry(variables: VariableData[]) {
-        // this function expects that the variables submitted are wholely unique. 
-        const newVars = new Set(variables.map((value) => { return { name: value.name, owner: value.owner } }))
+        const getKey = (v: VariableData) => `${v.owner}:${v.name}`;
 
-        // note that iterating through a map and mutating it is safe :]
+        const newVars = new Set(variables.map(getKey));
+
         this.variableData.forEach(element => {
-            // check if the 'new' variables don't exist in the old map (and this sprite owns that variable)
-            // if so, delete them.
-            if (!newVars.has({ name: element.name, owner: element.owner }) && element.owner === this.name) {
+            if (!newVars.has(getKey(element)) && element.owner === this.name) {
                 this.removeVariable(element.name);
             }
         });
@@ -426,16 +455,15 @@ export class BaseInstance extends Drawable {
     }
 
     public clearVariables() {
-        this.monitors.forEach(element => {
-            element.dispose();
-        });
-        this.monitors.clear();
+        for (const name of [...this.monitors.keys()]) {
+            this.removeVariable(name);
+        }
     }
 
     public removeVariable(variable: string) {
         const existingMonitor = this.monitors.get(variable);
 
-            if (existingMonitor) {
+            if (existingMonitor && !this.isClone) {
                 MonitorFactory.getInstance().flagRemoval()
                 existingMonitor.dispose();
             }
@@ -443,6 +471,17 @@ export class BaseInstance extends Drawable {
             this.monitors.delete(variable);
             this.variableData.delete(variable);
         return;
+    }
+
+    public getVariable(variable: string) {
+        const existingVariable = this.monitors.get(variable);
+
+        if (!existingVariable) {
+            return;
+        }
+
+        return existingVariable;
+        // return existingVariable.
     }
 
     public addVariable(variable: string) {
@@ -468,19 +507,25 @@ export class BaseInstance extends Drawable {
                 x: -230,
                 y: 170
             }
+
+            this.variableData.set(variable, variableData);
         }
 
-        if (!this.monitors.get(variable)) {
+        let existingMonitor = this.monitors.get(variable);
+
+        if (!existingMonitor) {
             if (is_list) {
-                this.monitors.set(variable, MonitorFactory.getInstance().constructMonitor(MonitorType.LIST, 
-                    this.stageHTML, this, variableData));
+                existingMonitor = MonitorFactory.getInstance().constructMonitor(MonitorType.LIST, 
+                    this.stageHTML, this, variableData)
+                this.monitors.set(variable, existingMonitor);
             } else {
-                this.monitors.set(variable, MonitorFactory.getInstance().constructMonitor(MonitorType.VARIABLE, 
-                    this.stageHTML, this, variableData));
+                existingMonitor = MonitorFactory.getInstance().constructMonitor(MonitorType.VARIABLE, 
+                    this.stageHTML, this, variableData)
+                this.monitors.set(variable, existingMonitor);
             }
         }
         
-        this.monitors.get(variable)
+        return existingMonitor;
     }
 
     public get name() {
@@ -543,6 +588,7 @@ export class BaseInstance extends Drawable {
     }
 
     public remove() {
+        this.clearVariables();
         this.sprite.remove();
     }
 
@@ -718,17 +764,24 @@ export class BaseSprite extends BaseInstance {
             data: this.toJSON(),
             isClone: true
         };
+
         const clone = new BaseSprite(this.gl, data, this.stageHTML);
 
-        const variableMap = new Map();
-        
-        clone.monitors.forEach(element => {
-            
+        this.monitors.forEach((monitor, name) => {
+            const clonedMonitor = clone.monitors.get(name);
+
+            if (!clonedMonitor) {
+                return;
+            }
+
+            const value = monitor.getValue();
+
+            clonedMonitor.setValue(
+                monitor.isList() ? [...value] : value
+            );
         });
 
-        clone.monitors = new Map(this.monitors);
-
-        return new BaseSprite(this.gl, data, this.stageHTML);
+        return clone;
     }
 
     public toJSON(): ObjectState {

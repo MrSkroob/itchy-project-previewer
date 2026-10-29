@@ -26,6 +26,9 @@ export class Drawable {
     protected gl;
 
     public costumes: CostumeData[];
+    
+    public readonly id: number;
+    private static idIncrement: number = 0;
 
     
     public getCostumeNumber() {
@@ -59,6 +62,8 @@ export class Drawable {
     constructor(gl: WebGL2RenderingContext, costumes: CostumeData[]) {
         this.gl = gl;
         this.costumes = costumes;
+        this.id = Drawable.idIncrement;
+        Drawable.idIncrement += 1;
     }
 
     public getCostume(index?: number) {
@@ -139,11 +144,11 @@ export class Renderer {
 
         for (let index = 0; index < renderOrder.length; index++) {
             const element = renderOrder[index];
-            const instance = this.drawables.get(element.name);
-            if (!instance) {
-                continue;
-            }
-            this.drawDrawable(instance);
+            // const instance = this.drawables.get(element.name);
+            // if (!instance) {
+            //     continue;
+            // }
+            this.drawDrawable(element);
         }
     }
 
@@ -197,6 +202,7 @@ export class Renderer {
         this.drawables.set(id, drawable);
     }
 
+    // i can't imagine why this would be called...
     public removeDrawable(id: string) {
         const drawable = this.drawables.get(id);
         

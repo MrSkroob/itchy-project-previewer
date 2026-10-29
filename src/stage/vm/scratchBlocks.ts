@@ -16,7 +16,7 @@
  */
 
 import { EventType, ExecutionContext, ItchyVM, ThreadGenerator, ScratchServices } from "./itchyVM";
-import { BaseInstance, BaseSprite } from "./objects";
+import { BaseInstance, BaseSprite, ListMonitor } from "./objects";
 import { STAGE_HEIGHT, STAGE_WIDTH } from "../common/constants";
 
 type Value = unknown;
@@ -196,28 +196,28 @@ function intersects(a: DOMRect, b: DOMRect): boolean {
 // Motion
 // --------------------------------------------------------------------------
 
-export function* motion_movesteps(context: ExecutionContext, steps: Value): ThreadGenerator {
+export function motion_movesteps(context: ExecutionContext, steps: Value) {
     const s = requireSprite(context);
     const velocity = fromDirection(s.rotation);
     s.x += velocity.x * number(steps);
     s.y += velocity.y * number(steps);
 }
 
-export function* motion_turnright(context: ExecutionContext, degrees: Value): ThreadGenerator {
+export function motion_turnright(context: ExecutionContext, degrees: Value) {
     const s = requireSprite(context);
     s.rotation = normaliseDirection(s.rotation + number(degrees));
 }
 
-export function* motion_turnleft(context: ExecutionContext, degrees: Value): ThreadGenerator {
+export function motion_turnleft(context: ExecutionContext, degrees: Value) {
     const s = requireSprite(context);
     s.rotation = normaliseDirection(s.rotation - number(degrees));
 }
 
-export function* motion_pointindirection(context: ExecutionContext, direction: Value): ThreadGenerator {
+export function motion_pointindirection(context: ExecutionContext, direction: Value) {
     requireSprite(context).rotation = normaliseDirection(number(direction));
 }
 
-export function* motion_pointtowards(context: ExecutionContext, targetName: Value): ThreadGenerator {
+export function motion_pointtowards(context: ExecutionContext, targetName: Value) {
     const s = requireSprite(context);
     const target = string(targetName);
     const coordinates = target === "_mouse_" ? mouseCoordinates(context)
@@ -229,7 +229,7 @@ export function* motion_pointtowards(context: ExecutionContext, targetName: Valu
     }
 }
 
-export function* motion_gotoxy(context: ExecutionContext, x: Value, y: Value): ThreadGenerator {
+export function motion_gotoxy(context: ExecutionContext, x: Value, y: Value) {
     const s = requireSprite(context);
     s.x = number(x);
     s.y = number(y);
@@ -246,30 +246,30 @@ function resolveTarget(context: ExecutionContext, target: Value): { x: number; y
     return other instanceof BaseSprite ? { x: other.x, y: other.y } : undefined;
 }
 
-export function* motion_goto(context: ExecutionContext, target: Value): ThreadGenerator {
+export function motion_goto(context: ExecutionContext, target: Value) {
     const position = resolveTarget(context, target);
-    if (position) yield* motion_gotoxy(context, position.x, position.y);
+    if (position) motion_gotoxy(context, position.x, position.y);
 }
 
-export function* motion_changexby(context: ExecutionContext, dx: Value): ThreadGenerator {
+export function motion_changexby(context: ExecutionContext, dx: Value) {
     const s = requireSprite(context);
     s.x += number(dx);
 }
 
-export function* motion_setx(context: ExecutionContext, x: Value): ThreadGenerator {
+export function motion_setx(context: ExecutionContext, x: Value) {
     requireSprite(context).x = number(x);
 }
 
-export function* motion_changeyby(context: ExecutionContext, dy: Value): ThreadGenerator {
+export function motion_changeyby(context: ExecutionContext, dy: Value) {
     const s = requireSprite(context);
     s.y += number(dy);
 }
 
-export function* motion_sety(context: ExecutionContext, y: Value): ThreadGenerator {
+export function motion_sety(context: ExecutionContext, y: Value) {
     requireSprite(context).y = number(y);
 }
 
-export function* motion_ifonedgebounce(context: ExecutionContext): ThreadGenerator {
+export function motion_ifonedgebounce(context: ExecutionContext) {
     const s = requireSprite(context);
     const halfWidth = STAGE_WIDTH / 2;
     const halfHeight = STAGE_HEIGHT / 2;
@@ -285,7 +285,7 @@ export function* motion_ifonedgebounce(context: ExecutionContext): ThreadGenerat
     s.y = Math.max(-halfHeight, Math.min(halfHeight, s.y));
 }
 
-export function* motion_setrotationstyle(context: ExecutionContext, style: Value): ThreadGenerator {
+export function motion_setrotationstyle(context: ExecutionContext, style: Value) {
     const value = string(style);
     if (["all around", "left-right", "don't rotate"].includes(value)) {
         requireSprite(context).rotationStyle = value;
@@ -337,19 +337,19 @@ export function* motion_glideto(context: ExecutionContext, seconds: Value, targe
 // Looks: visibility, size, costumes, backdrops
 // --------------------------------------------------------------------------
 
-export function* looks_show(context: ExecutionContext): ThreadGenerator {
+export function looks_show(context: ExecutionContext) {
     requireSprite(context).visible = true;
 }
 
-export function* looks_hide(context: ExecutionContext): ThreadGenerator {
+export function looks_hide(context: ExecutionContext) {
     requireSprite(context).visible = false;
 }
 
-export function* looks_setsizeto(context: ExecutionContext, percentage: Value): ThreadGenerator {
+export function looks_setsizeto(context: ExecutionContext, percentage: Value) {
     requireSprite(context).size = Math.max(0, number(percentage));
 }
 
-export function* looks_changesizeby(context: ExecutionContext, percentage: Value): ThreadGenerator {
+export function looks_changesizeby(context: ExecutionContext, percentage: Value) {
     const s = requireSprite(context);
     s.size = Math.max(0, s.size + number(percentage));
 }
@@ -373,11 +373,11 @@ function switchCostume(target: BaseInstance, selection: Value): void {
     }
 }
 
-export function* looks_switchcostumeto(context: ExecutionContext, selection: Value): ThreadGenerator {
+export function looks_switchcostumeto(context: ExecutionContext, selection: Value) {
     switchCostume(requireSprite(context), selection);
 }
 
-export function* looks_nextcostume(context: ExecutionContext): ThreadGenerator {
+export function looks_nextcostume(context: ExecutionContext) {
     switchCostume(requireSprite(context), "next costume");
 }
 
@@ -389,7 +389,7 @@ function switchBackdropAndFire(context: ExecutionContext, selection: Value) {
     }
 }
 
-export function* looks_switchbackdropto(context: ExecutionContext, selection: Value): ThreadGenerator {
+export function looks_switchbackdropto(context: ExecutionContext, selection: Value) {
     switchBackdropAndFire(context, selection);
 }
 
@@ -398,7 +398,7 @@ export function* looks_switchbackdroptoandwait(context: ExecutionContext, select
     if (run) yield { type: "waitingFor", event: run };
 }
 
-export function* looks_nextbackdrop(context: ExecutionContext): ThreadGenerator {
+export function looks_nextbackdrop(context: ExecutionContext) {
     switchBackdropAndFire(context, "next backdrop");
 }
 
@@ -412,7 +412,7 @@ export function looks_backdropnumbername(context: ExecutionContext, numberOrName
     return string(numberOrName).toLowerCase() === "name" ? b.costumeName : b.costumeNumber + 1;
 }
 
-export function* looks_gotofrontback(context: ExecutionContext, direction: Value): ThreadGenerator {
+export function looks_gotofrontback(context: ExecutionContext, direction: Value) {
     const s = requireSprite(context);
     if (string(direction).toLowerCase() === "front") {
         requireService(context, "bringToFront")(s);
@@ -421,13 +421,47 @@ export function* looks_gotofrontback(context: ExecutionContext, direction: Value
     }
 }
 
-export function* looks_goforwardbackwardlayers(
-    context: ExecutionContext, direction: Value, amount: Value
-): ThreadGenerator {
+export function looks_goforwardbackwardlayers(context: ExecutionContext, direction: Value, amount: Value) {
     const s = requireSprite(context);
     const forwards = string(direction).toLowerCase() === "forward";
     requireService(context, "moveLayers")(s, forwards ? "forward" : "backward", number(amount));
 }
+
+// --------------------------------------------------------------------------
+// Looks: speech bubbles and graphic effects (not yet rendered in the preview)
+// --------------------------------------------------------------------------
+
+export function* looks_say(_context: ExecutionContext, _message: Value): ThreadGenerator {}
+export function* looks_sayforsecs(_context: ExecutionContext, _message: Value, _seconds: Value): ThreadGenerator {}
+export function* looks_think(_context: ExecutionContext, _message: Value): ThreadGenerator {}
+export function* looks_thinkforsecs(_context: ExecutionContext, _message: Value, _seconds: Value): ThreadGenerator {}
+export function* looks_changeeffectby(_context: ExecutionContext, _effect: Value, _amount: Value): ThreadGenerator {}
+export function* looks_seteffectto(_context: ExecutionContext, _effect: Value, _value: Value): ThreadGenerator {}
+export function* looks_cleargraphiceffects(_context: ExecutionContext): ThreadGenerator {}
+
+// Legacy Looks blocks.
+export function* looks_hideallsprites(_context: ExecutionContext): ThreadGenerator {}
+export function* looks_changestretchby(_context: ExecutionContext, _amount: Value): ThreadGenerator {}
+export function* looks_setstretchto(_context: ExecutionContext, _percentage: Value): ThreadGenerator {}
+
+// --------------------------------------------------------------------------
+// Sound (audio playback and sound effects are not yet supported)
+// --------------------------------------------------------------------------
+
+export function* sound_play(_context: ExecutionContext, _sound: Value): ThreadGenerator {}
+export function* sound_playuntildone(_context: ExecutionContext, _sound: Value): ThreadGenerator {}
+export function* sound_stopallsounds(_context: ExecutionContext): ThreadGenerator {}
+export function* sound_changeeffectby(_context: ExecutionContext, _effect: Value, _amount: Value): ThreadGenerator {}
+export function* sound_seteffectto(_context: ExecutionContext, _effect: Value, _value: Value): ThreadGenerator {}
+export function* sound_cleareffects(_context: ExecutionContext): ThreadGenerator {}
+export function* sound_changevolumeby(_context: ExecutionContext, _amount: Value): ThreadGenerator {}
+export function* sound_setvolumeto(_context: ExecutionContext, _volume: Value): ThreadGenerator {}
+export function sound_volume(_context: ExecutionContext): number { return 0; }
+
+// Menu reporter opcodes, normally compiled to literal values.
+export function sound_sounds_menu(_context: ExecutionContext, _sound?: Value): string { return ""; }
+export function sound_beats_menu(_context: ExecutionContext, _beats?: Value): number { return 0; }
+export function sound_effects_menu(_context: ExecutionContext, _effect?: Value): string { return ""; }
 
 // --------------------------------------------------------------------------
 // Control: primitive operations only. Branches/loops are native JS in emitted code.
@@ -446,19 +480,16 @@ export function* control_wait_until(_context: ExecutionContext, condition: Condi
     }
 }
 
-export function* control_create_clone_of(context: ExecutionContext, targetName: Value): ThreadGenerator {
+export function control_create_clone_of(context: ExecutionContext, targetName: Value) {
     const name = string(targetName);
     const target = name === "_myself_" ? context.sprite : namedTarget(context, name);
     if (!(target instanceof BaseSprite)) return;
     const clone = getServices(context)?.createClone?.(target) ?? target.clone();
     // Clones inherit the original sprite's variable/list state.
-    clone.variables = new Map(
-        [...target.variables].map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])
-    );
     requireVM(context).fireInstanceEvent(EventType.CLONE, clone);
 }
 
-export function* control_delete_this_clone(context: ExecutionContext): ThreadGenerator {
+export function control_delete_this_clone(context: ExecutionContext) {
     const s = requireSprite(context);
     if (!s.isClone) return;
     // Removing a clone must also terminate any scripts running on that instance.
@@ -466,24 +497,37 @@ export function* control_delete_this_clone(context: ExecutionContext): ThreadGen
     const deleteClone = getServices(context)?.deleteClone;
     if (deleteClone) deleteClone(s);
     else s.remove();
-    yield { type: "waitOneFrame" };
 }
 
-export function* control_stop(context: ExecutionContext, scope: Value): ThreadGenerator {
-    if (string(scope) === "all") {
+export function control_stop(context: ExecutionContext, scope: string) {
+    if (scope == "all") {
         requireVM(context).stop();
         // VM.stop() marks the running thread done; don't resume its script.
-        yield { type: "waitOneFrame" };
+        return;
+    } else if (scope == "other scripts in sprite") {
+        if (context.sprite && context.thread) {
+            requireVM(context).stopOtherScriptsInSprite(context.sprite, context.thread);
+        }
+        return;
+    } else if (scope == "this script") {
+        if (context.thread) {
+            context.thread.kill();
+        }
         return;
     }
-    throw new Error(`control_stop(${string(scope)}) requires a current-thread API in ItchyVM`);
+    throw new Error(`control_stop(${scope}) requires a current-thread API in ItchyVM`);
 }
+
+// Legacy Control counter blocks. Loops, conditions, and warps are compiled to native JS.
+export function control_get_counter(_context: ExecutionContext): number { return 0; }
+export function* control_incr_counter(_context: ExecutionContext): ThreadGenerator {}
+export function* control_clear_counter(_context: ExecutionContext): ThreadGenerator {}
 
 // --------------------------------------------------------------------------
 // Events: hats are registered by generated code, not executed as blocks.
 // --------------------------------------------------------------------------
 
-export function* event_broadcast(context: ExecutionContext, message: Value): ThreadGenerator {
+export function event_broadcast(context: ExecutionContext, message: Value) {
     requireVM(context).fireGlobalEvent(EventType.MESSAGE, string(message));
 }
 
@@ -560,11 +604,11 @@ export function data_variable(context: ExecutionContext, name: Value): Value {
     return variableOwner(context, string(name)).monitors.get(string(name)) ?? 0;
 }
 
-export function* data_setvariableto(context: ExecutionContext, name: Value, value: Value): ThreadGenerator {
-    variableOwner(context, string(name)).addVariable(string(name), value);
+export function data_setvariableto(context: ExecutionContext, name: Value, value: Value) {
+    variableOwner(context, string(name)).getVariable(name as string)?.setValue(value);
 }
 
-export function* data_changevariableby(context: ExecutionContext, name: Value, delta: Value): ThreadGenerator {
+export function data_changevariableby(context: ExecutionContext, name: Value, delta: Value) {
     const owner = variableOwner(context, string(name));
     const old = owner.monitors.get(string(name));
     owner.monitors.get(name as string)?.setValue(number(old) + number(delta));
@@ -572,10 +616,10 @@ export function* data_changevariableby(context: ExecutionContext, name: Value, d
 
 function list(context: ExecutionContext, name: Value): ListValue {
     const owner = variableOwner(context, string(name));
-    const current = owner.variables.get(string(name));
-    if (Array.isArray(current)) return current;
+    const current = owner.monitors.get(string(name));
+    if (Array.isArray(current?.isList())) return (current as ListMonitor).items;
     const result: ListValue = [];
-    owner.addVariable(string(name), result);
+    owner.addList(string(name));
     return result;
 }
 
@@ -590,11 +634,11 @@ function listIndex(index: Value, length: number, allowEnd = false): number {
     return n >= 0 && n < length + (allowEnd ? 1 : 0) ? n : -1;
 }
 
-export function* data_addtolist(context: ExecutionContext, item: Value, listName: Value): ThreadGenerator {
+export function data_addtolist(context: ExecutionContext, item: Value, listName: Value) {
     list(context, listName).push(item);
 }
 
-export function* data_deleteoflist(context: ExecutionContext, index: Value, listName: Value): ThreadGenerator {
+export function data_deleteoflist(context: ExecutionContext, index: Value, listName: Value) {
     const items = list(context, listName);
     if (string(index).toLowerCase() === "all") {
         items.length = 0;
@@ -604,17 +648,17 @@ export function* data_deleteoflist(context: ExecutionContext, index: Value, list
     if (i >= 0) items.splice(i, 1);
 }
 
-export function* data_deletealloflist(context: ExecutionContext, listName: Value): ThreadGenerator {
+export function data_deletealloflist(context: ExecutionContext, listName: Value) {
     list(context, listName).length = 0;
 }
 
-export function* data_insertatlist(context: ExecutionContext, item: Value, index: Value, listName: Value): ThreadGenerator {
+export function data_insertatlist(context: ExecutionContext, item: Value, index: Value, listName: Value) {
     const items = list(context, listName);
     const i = listIndex(index, items.length, true);
     if (i >= 0) items.splice(i, 0, item);
 }
 
-export function* data_replaceitemoflist(context: ExecutionContext, index: Value, listName: Value, item: Value): ThreadGenerator {
+export function data_replaceitemoflist(context: ExecutionContext, index: Value, listName: Value, item: Value) {
     const items = list(context, listName);
     const i = listIndex(index, items.length);
     if (i >= 0) items[i] = item;
@@ -643,6 +687,12 @@ export function data_listcontents(context: ExecutionContext, listName: Value): s
     const items = list(context, listName).map(string);
     return items.every(item => item.length === 1) ? items.join("") : items.join(" ");
 }
+
+// Monitor visibility (the preview doesn't currently expose show/hide operations).
+export function* data_showvariable(_context: ExecutionContext, _name: Value): ThreadGenerator {}
+export function* data_hidevariable(_context: ExecutionContext, _name: Value): ThreadGenerator {}
+export function* data_showlist(_context: ExecutionContext, _name: Value): ThreadGenerator {}
+export function* data_hidelist(_context: ExecutionContext, _name: Value): ThreadGenerator {}
 
 // --------------------------------------------------------------------------
 // Sensing
@@ -718,7 +768,7 @@ export function sensing_of(context: ExecutionContext, property: Value, targetNam
         case "backdrop #": return context.backdrop.costumeNumber + 1;
         case "backdrop name": return context.backdrop.costumeName;
     }
-    return target.variables.get(string(property)) ?? 0;
+    return target.monitors.get(string(property)) ?? 0;
 }
 
 let startTime = performance.now();
@@ -728,7 +778,7 @@ export function sensing_timer(_context: ExecutionContext): number {
     return (performance.now() - startTime) / 1000;
 }
 
-export function* sensing_resettimer(_context: ExecutionContext): ThreadGenerator {
+export function sensing_resettimer(_context: ExecutionContext) {
     startTime = performance.now();
 }
 
@@ -766,3 +816,51 @@ export function sensing_dayssince2000(_context: ExecutionContext): number {
 export function sensing_username(context: ExecutionContext): string {
     return getServices(context)?.username?.() ?? "";
 }
+
+// --------------------------------------------------------------------------
+// Sensing: unimplemented microphone / drag features
+// --------------------------------------------------------------------------
+
+export function sensing_setdragmode(_context: ExecutionContext, _mode: Value) {}
+export function sensing_loudness(_context: ExecutionContext): number { return 0; }
+export function sensing_loud(_context: ExecutionContext): boolean { return false; }
+export function sensing_userid(_context: ExecutionContext): string { return ""; }
+
+// Scratch's event hats are registered by the compiler, but these two hat
+// predicates also have executable primitives in the Scratch VM.
+export function event_whentouchingobject(_context: ExecutionContext, _target: Value): boolean { return false; }
+export function event_whengreaterthan(_context: ExecutionContext, _kind: Value, _threshold: Value): boolean { return false; }
+
+// --------------------------------------------------------------------------
+// Pen extension (drawing is not yet supported)
+// --------------------------------------------------------------------------
+
+export function* pen_clear(_context: ExecutionContext): ThreadGenerator {}
+export function* pen_stamp(_context: ExecutionContext): ThreadGenerator {}
+export function* pen_penDown(_context: ExecutionContext): ThreadGenerator {}
+export function* pen_penUp(_context: ExecutionContext): ThreadGenerator {}
+export function* pen_setPenColorToColor(_context: ExecutionContext, _color: Value): ThreadGenerator {}
+export function* pen_changePenColorParamBy(_context: ExecutionContext, _parameter: Value, _value: Value): ThreadGenerator {}
+export function* pen_setPenColorParamTo(_context: ExecutionContext, _parameter: Value, _value: Value): ThreadGenerator {}
+export function* pen_changePenSizeBy(_context: ExecutionContext, _size: Value): ThreadGenerator {}
+export function* pen_setPenSizeTo(_context: ExecutionContext, _size: Value): ThreadGenerator {}
+
+// Legacy Scratch 2 pen blocks, still supported by Scratch 3's Pen extension.
+export function* pen_setPenShadeToNumber(_context: ExecutionContext, _shade: Value): ThreadGenerator {}
+export function* pen_changePenShadeBy(_context: ExecutionContext, _shade: Value): ThreadGenerator {}
+export function* pen_setPenHueToNumber(_context: ExecutionContext, _hue: Value): ThreadGenerator {}
+export function* pen_changePenHueBy(_context: ExecutionContext, _hue: Value): ThreadGenerator {}
+
+// --------------------------------------------------------------------------
+// Music extension (optional; playback is not yet supported)
+// --------------------------------------------------------------------------
+
+export function* music_playDrumForBeats(_context: ExecutionContext, _drum: Value, _beats: Value): ThreadGenerator {}
+export function* music_midiPlayDrumForBeats(_context: ExecutionContext, _drum: Value, _beats: Value): ThreadGenerator {}
+export function* music_restForBeats(_context: ExecutionContext, _beats: Value): ThreadGenerator {}
+export function* music_playNoteForBeats(_context: ExecutionContext, _note: Value, _beats: Value): ThreadGenerator {}
+export function* music_setInstrument(_context: ExecutionContext, _instrument: Value): ThreadGenerator {}
+export function* music_midiSetInstrument(_context: ExecutionContext, _instrument: Value): ThreadGenerator {}
+export function* music_setTempo(_context: ExecutionContext, _tempo: Value): ThreadGenerator {}
+export function* music_changeTempo(_context: ExecutionContext, _tempo: Value): ThreadGenerator {}
+export function music_getTempo(_context: ExecutionContext): number { return 0; }

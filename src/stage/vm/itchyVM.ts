@@ -1,5 +1,6 @@
+import { Drawable } from "../renderer/renderer.js";
 import { BaseBackdrop, BaseSprite, BaseInstance } from "./objects.js";
-
+import * as ScratchBlock from "./scratchBlocks";
 
 /** Host capabilities that are not owned by ItchyVM itself. */
 export interface ScratchServices {
@@ -21,15 +22,11 @@ export interface ExecutionContext {
     sprite?: BaseSprite;
     backdrop: BaseBackdrop;
     /** Injected automatically by ItchyVM when a script is started. */
+    thread?: Thread;
     vm?: ItchyVM;
     scratch?: ScratchServices
 }
 
-export interface Runtime {
-    isKeyDown(key: string): boolean;
-    // broadcast(message: string): EventRun;
-    // other VM-facing operations scripts may need
-}
 
 export type YieldInstruction = 
     | {type: "waitOneFrame"}
@@ -126,6 +123,9 @@ class Thread {
     public childEvent?: EventRun;
     public readonly sprite?: BaseSprite;
 
+    public readonly id: number;
+    private static idIncrement: number = 0;
+
     public get status() {
         if (this.done) {
             return "done";
@@ -142,6 +142,14 @@ class Thread {
         this.generator = generator;
         this.msPerTick = msPerTick;
         this.sprite = sprite;
+        this.id = Thread.idIncrement;
+        Thread.idIncrement += 1;
+    }
+
+    public killExceptSelf() {
+        if (this.childEvent) {
+            this.childEvent.kill();
+        }
     }
 
     public kill() {
@@ -199,7 +207,7 @@ class Thread {
         this.yieldInstruction = yieldInstruction;
 
         switch (yieldInstruction.type) {
-            case "wait":
+            case "wait":                
                 this.wakeTime = performance.now() + yieldInstruction.seconds * 1000;
                 break;
             case "waitOneFrame":
@@ -231,7 +239,9 @@ function addToMapList<K, T>(map: Map<K, T[]>, item: T, key: K) {
 export class ItchyVM {
     public msPerTick: number;
     // private workspace: Workspace;
+
     private threads: Thread[] = [];
+    private rootThreads: Map<string, Thread[]> = new Map();
 
     // private events: Map<EventType, Event> = new Map(); 
 
@@ -245,11 +255,13 @@ export class ItchyVM {
     private events: EventStore = new Map();
 
     private keysDown: Set<string> = new Set();
+    public renderTargets: Drawable[];
 
     public targets: ReadonlyMap<string, BaseInstance>;
 
-    constructor(tickrate: number, targetMap: Map<string, BaseInstance>) {
+    constructor(tickrate: number, targetMap: Map<string, BaseInstance>, renderTargets: Drawable[]) {
         // this.workspace = workspace;
+        this.renderTargets = renderTargets;
         this.targets = targetMap;
         this.msPerTick = (1 / tickrate) * 1000; 
 
@@ -325,10 +337,12 @@ export class ItchyVM {
             const context: ExecutionContext = {
                 ...script.context,
                 sprite: instance,
-                scratch: new ScratchServiceImplementation(this)
+                scratch: new ScratchServiceImplementation(this),
             };
 
             const thread = this.spawnScript(script, context);
+            // feels yucky but I don't know why...
+            context.thread = thread;
             eventRun.hookThread(thread);
         }
 
@@ -342,7 +356,24 @@ export class ItchyVM {
         const eventRun = new EventRun();
 
         for (const script of this.getMatchingScripts(eventType, args)) {
-            const thread = this.spawnScript(script);
+            let thread;
+
+            const context = script.context;
+
+            // if (this.backdrop) {
+            //     // honestly, this should always be true.
+            //     // however, we can't really guarantee it...
+            //     const context: ExecutionContext = {
+            //         backdrop: this.backdrop
+            //     }
+            //     thread = this.spawnScript(script, context); 
+            //     context.thread = thread;
+            // } else {
+            thread = this.spawnScript(script, context);
+            context.thread = thread;
+            // }
+
+            
             eventRun.hookThread(thread);
         }
 
@@ -358,9 +389,20 @@ export class ItchyVM {
             runtimeContext.sprite
         );
 
+        if (runtimeContext.sprite && !runtimeContext.sprite?.isClone) {
+            this.rootThreads.get(runtimeContext.sprite?.name)?.push(thread);
+        }
         this.threads.push(thread);
 
         return thread;
+    }
+
+    public stopOtherScriptsInSprite(instance: BaseSprite, thread: Thread) {
+        this.rootThreads.get(instance.name)?.forEach(element => {
+            if (element.id !== thread.id) {
+                element.kill();
+            }
+        });
     }
 
     /** Stop all threads belonging to a specific sprite instance (including clones). */
@@ -381,11 +423,53 @@ export class ItchyVM {
     }
 
     public async registerProgram(programFilePath: string) {
-        console.log("Loading: " + programFilePath);
-        const module = await import(programFilePath);
+        try {
+            // this causes a memory leak! you'll need to refresh the window each time to prevent this.
+            const module = await import(`${programFilePath}?v=${Date.now()}`);
+            const project: (vm: ItchyVM, contexts: {[k: string]: ExecutionContext}, eventType: typeof EventType, scratchBlocks: typeof ScratchBlock) => {} = module.registerProject;
+            
+            const contexts: Map<string, ExecutionContext> = new Map();
 
-        const project: (vm: ItchyVM, eventType: typeof EventType) => {} = module.registerProject;
-        project(this, EventType);
+            let backdrop: BaseBackdrop | null = null;
+
+            for (const element of this.targets.values()) {
+                if (element instanceof BaseBackdrop) {
+                    backdrop = element;
+                    break;
+                }
+            }
+
+            if (!backdrop) {
+                return;
+            }
+
+            // this.backdrop = backdrop;
+
+            this.targets.forEach(element => {
+                let sprite;
+                if (element instanceof BaseSprite) {
+                    sprite = element;
+                }
+
+                this.rootThreads.set(sprite?.name ?? "stage", []);
+
+                contexts.set(
+                    element.name,
+                    {
+                        sprite: sprite,
+                        backdrop: backdrop,
+                        vm: this,
+                        scratch: new ScratchServiceImplementation(this)
+                    }
+                )
+            });
+            
+            project(this, Object.fromEntries(contexts), EventType, ScratchBlock);
+        } catch(error) {
+            console.log(error);
+        }
+
+        // const module = await import(programFilePath);
     }
 
     public step() {
@@ -464,12 +548,31 @@ class ScratchServiceImplementation implements ScratchServices {
     }
 
     public createClone(target: BaseSprite): BaseSprite {
-        return target.clone();
+        const clone = target.clone();
+        // this.vm.fireInstanceEvent(EventType.CLONE, clone);
+        this.vm.renderTargets.push(clone);
+        
+        return clone;
     }
 
     public username() {
         return "";
     }
 
-    // public deleteClone?: ((target: BaseSprite) => void) | undefined;
+    public deleteClone(target: BaseSprite) {
+        if (!this.vm) {
+            return;
+        }
+
+        const renderList = this.vm.renderTargets;
+        for (let index = 0; index < renderList.length; index++) {
+            const element = renderList[index];
+            
+            if (element === target) {
+                renderList.splice(index, 1);
+                break;
+            }
+        }
+        target.remove();
+    }
 }
